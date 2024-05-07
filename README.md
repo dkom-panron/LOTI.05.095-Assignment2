@@ -28,7 +28,7 @@ python3 highway.py
 ## <b>Editing and testing your optimizer</b>
 ```python
 for _ in range(500):
-    
+        
     # Action to be computed using your Optimizer based on observation
     action = [0, 0]     
 
@@ -36,7 +36,7 @@ for _ in range(500):
     ego_state, obs = set_obs(obs, lane_ub, lane_lb)
 
     # Plot your generated trajectories here
-    plt.plot(np.arange(100), np.arange(100) * 0, linewidth=1.0, color="k")
+    env_barrier.lines[0].set_data(np.arange(100), np.arange(100) * 0)
 
     env_barrier.step(
         th.from_numpy(ego_state), 
