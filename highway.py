@@ -103,16 +103,20 @@ if __name__ == "__main__":
 
     ego_state, obs = set_obs(obs, lane_ub, lane_lb)
     for _ in range(500):
-        action = [0, 0]     # Optimizer(obs)
+        
+        # Action to be computed using your Optimizer based on observation
+        action = [0, 0]     
+
         obs, reward, done, truncated, info = env.step(action)
         ego_state, obs = set_obs(obs, lane_ub, lane_lb)
 
-        print(obs)
+        # Plot your generated trajectories here
+        plt.plot(np.arange(100), np.arange(100) * 0, linewidth=1.0, color="k")
+
         env_barrier.step(
             th.from_numpy(ego_state), 
             th.from_numpy(obs[1:]), 
             lane_lb, lane_ub
         )
-        time.sleep(1000)
         env.render()
         
