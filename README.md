@@ -1,6 +1,16 @@
 # <b>Setup HighwayEnv for Optimization class</b>
 Starting code and Explanation for using the HighwayEnv gym Environment for optimization class
 
+## <b>Setup and Installation</b>
+Create a conda environment and activate:<br>
+`conda create --prefix ./.venv -y`<br>
+`conda activate ./.venv`
+
+Or you can setup the environment to your own convenience. 
+
+Then install the dependencies using the command:<br>
+`pip install -r requirements.txt`
+
 ## <b>Observation configuration</b>
 The configurations and setup sets the observation to return the positions of other vehicles relative to the ego vehicle while the velocities and heading angles are all absolute values.
 
