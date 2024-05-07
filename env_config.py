@@ -1,7 +1,7 @@
 env_config = dict(
     other_vehicles_type="highway_env.vehicle.behavior.IDMVehicle",
     manual_control=False,
-    lanes_count=4,
+    lanes_count=2,
     vehicles_count=30,
     vehicles_density=2.0,
     controlled_vehicles=1,
@@ -40,7 +40,7 @@ env_config = dict(
     reward_speed_range=[0, 40],
     normalize_reward=True,
     on_road_reward=0.1,
-    offroad_terminal=True,
+    offroad_terminal=False,
     screen_width=600,   # [px]
     screen_height=150,  # [px]
     centering_position=[0.3, 0.5],
