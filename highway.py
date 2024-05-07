@@ -14,7 +14,6 @@ def rotation_matrix(theta):
         th.stack([th.sin(theta),  th.cos(theta)], dim=-1)
     ], dim=-2).squeeze()
 
-
 class EnvBarrierSim:
     def __init__(self, width, height, lane_count=4, figsize=(10, 4), vx=(-30, 80), vy=(-20, 20), n: int = 500):
         self.X, self.Y = th.meshgrid(th.linspace(*vx, n), th.linspace(*vy, n), indexing="ij")
@@ -71,11 +70,24 @@ class EnvBarrierSim:
         self.fig.canvas.flush_events()
 
 
+def set_obs(obs, global_lane_up, global_lane_lb):
+    ego_state = np.copy(obs[0])
+
+    lb_lane = global_lane_lb - obs[0][1]
+    ub_lane = global_lane_up + obs[0][1]
+
+    ego_pose = obs[0, :2]
+    obs[:, :2] = obs[:, :2] - ego_pose 
+    obs[0, :2] = np.asarray([lb_lane, ub_lane])
+
+    return ego_state, obs
+
+
 if __name__ == "__main__":
     env_config = env_config
     env = gym.make("highway-v0", config=env_config, render_mode="human")
-    env.unwrapped.config["observation"]["absolute"] = False
-    env.reset(seed=121)
+    env.unwrapped.config["observation"]["absolute"] = True
+    obs, info = env.reset(seed=121)
 
     lane_lower = env.unwrapped.road.network.graph["0"]["1"][+0]
     lane_upper = env.unwrapped.road.network.graph["0"]["1"][-1]
@@ -89,13 +101,18 @@ if __name__ == "__main__":
         lane_count=env_config["lanes_count"]
     )
 
+    ego_state, obs = set_obs(obs, lane_ub, lane_lb)
     for _ in range(500):
-        action = [0, 0]
+        action = [0, 0]     # Optimizer(obs)
         obs, reward, done, truncated, info = env.step(action)
-        obs = th.from_numpy(obs)
-        lb_lane = lane_lb - obs[0][1]
-        up_lane = lane_ub + obs[0][1]
+        ego_state, obs = set_obs(obs, lane_ub, lane_lb)
 
+        print(obs)
+        env_barrier.step(
+            th.from_numpy(ego_state), 
+            th.from_numpy(obs[1:]), 
+            lane_lb, lane_ub
+        )
+        time.sleep(1000)
         env.render()
-        env_barrier.step(obs[0], obs[1:], lane_lb, lane_ub)
         

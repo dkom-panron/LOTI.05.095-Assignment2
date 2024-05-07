@@ -8,14 +8,14 @@ env_config = dict(
     initial_lane_id=None,
     ego_spacing=2.0,
     duration=100,
-    speed_limit=8,
+    speed_limit=15,
     simulation_frequency=100,
     policy_frequency=10,
 
     obs_normalize=False,
     observation = dict(
         type="Kinematics",
-        vehicles_count=15,
+        vehicles_count=10,
         features=["x", "y", "vx", "vy", "heading"],
         absolute=False,
         clip=False,
