@@ -112,7 +112,6 @@ if __name__ == "__main__":
 
         # Plot your generated trajectories here
         plt.plot(np.arange(100), np.arange(100) * 0, linewidth=1.0, color="k")
-
         env_barrier.step(
             th.from_numpy(ego_state), 
             th.from_numpy(obs[1:]), 
