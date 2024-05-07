@@ -1,7 +1,7 @@
 env_config = dict(
     other_vehicles_type="highway_env.vehicle.behavior.IDMVehicle",
     manual_control=False,
-    lanes_count=2,
+    lanes_count=4,
     vehicles_count=30,
     vehicles_density=2.0,
     controlled_vehicles=1,
@@ -20,7 +20,7 @@ env_config = dict(
         absolute=False,
         clip=False,
         normalize=False, 
-        see_behind=True,
+        see_behind=False,
     ),   
 
     action=dict(

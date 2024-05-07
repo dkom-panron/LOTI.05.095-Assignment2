@@ -15,7 +15,7 @@ def rotation_matrix(theta):
     ], dim=-2).squeeze()
 
 class EnvBarrierSim:
-    def __init__(self, width, height, lane_count=4, figsize=(10, 4), vx=(-30, 80), vy=(-20, 20), n: int = 500):
+    def __init__(self, width, height, lane_count=4, num=100, figsize=(10, 4), vx=(-30, 80), vy=(-20, 20), n: int = 500):
         self.X, self.Y = th.meshgrid(th.linspace(*vx, n), th.linspace(*vy, n), indexing="ij")
         self.points = th.stack([self.X, self.Y], dim=-1)
 
@@ -37,6 +37,7 @@ class EnvBarrierSim:
         )
         self.ax.add_artist(self.ego)
 
+        self.lines = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * num)], lw=0.7)
         self.lanes = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * 5)], lw=0.7)
 
         plt.axis([*vx, *vy])
@@ -111,7 +112,8 @@ if __name__ == "__main__":
         ego_state, obs = set_obs(obs, lane_ub, lane_lb)
 
         # Plot your generated trajectories here
-        plt.plot(np.arange(100), np.arange(100) * 0, linewidth=1.0, color="k")
+        env_barrier.lines[0].set_data(np.arange(100), np.arange(100) * 0)
+
         env_barrier.step(
             th.from_numpy(ego_state), 
             th.from_numpy(obs[1:]), 
