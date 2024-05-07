@@ -75,7 +75,7 @@ def set_obs(obs, global_lane_up, global_lane_lb):
     ego_state = np.copy(obs[0])
 
     lb_lane = global_lane_lb - obs[0][1]
-    ub_lane = global_lane_up + obs[0][1]
+    ub_lane = global_lane_up - obs[0][1]
 
     ego_pose = obs[0, :2]
     obs[:, :2] = obs[:, :2] - ego_pose 
