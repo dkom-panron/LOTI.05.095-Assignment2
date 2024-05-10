@@ -4,26 +4,19 @@ import gymnasium as gym
 from env_config import env_config
 
 import time
-import torch as th
 import matplotlib.pyplot as plt
 
 
-def rotation_matrix(theta):
-    return th.stack([
-        th.stack([th.cos(theta), -th.sin(theta)], dim=-1),
-        th.stack([th.sin(theta),  th.cos(theta)], dim=-1)
-    ], dim=-2).squeeze()
-
 class EnvBarrierSim:
     def __init__(self, width, height, obs_count, lane_count=4, num=100, figsize=(10, 4), vx=(-30, 80), vy=(-20, 20), n: int = 500):
-        self.X, self.Y = th.meshgrid(th.linspace(*vx, n), th.linspace(*vy, n), indexing="ij")
-        self.points = th.stack([self.X, self.Y], dim=-1)
+        self.X, self.Y = np.meshgrid(np.linspace(*vx, n), np.linspace(*vy, n))
+        self.points = np.stack([self.X, self.Y], axis=-1)
 
         self.LANE_COUNT = lane_count
         self.LANE_WIDTH = 4
         self.WIDTH, self.HEIGHT = height, width
-        self.A = th.tensor([[1., 0.], [-1., 0.], [0., 1.], [0, -1.]])
-        self.b = th.tensor([self.WIDTH/2, self.WIDTH/2, self.HEIGHT/2, self.HEIGHT/2])
+        self.A = np.array([[1., 0.], [-1., 0.], [0., 1.], [0, -1.]])
+        self.b = np.array([self.WIDTH/2, self.WIDTH/2, self.HEIGHT/2, self.HEIGHT/2])
 
         plt.ion()
         self.fig, self.ax = plt.subplots(figsize=figsize)
@@ -103,12 +96,13 @@ if __name__ == "__main__":
     env_barrier = EnvBarrierSim(
         env.unwrapped.vehicle.WIDTH, 
         env.unwrapped.vehicle.LENGTH, 
-        obs_count=env_config["observation"]["vehicles_count"] - 1,
-        lane_count=env_config["lanes_count"]
+        obs_count=env.unwrapped.config["observation"]["vehicles_count"] - 1,
+        lane_count=env.unwrapped.config["lanes_count"]
     )
 
     ego_state, obs = set_obs(obs, lane_ub, lane_lb)
-    for _ in range(500):
+    done = False
+    while not done:
         
         # Action to be computed using your Optimizer based on observation
         action = [0, 0]     
@@ -120,9 +114,7 @@ if __name__ == "__main__":
         env_barrier.lines[0].set_data(np.arange(100), np.arange(100) * 0)
 
         env_barrier.step(
-            th.from_numpy(ego_state), 
-            th.from_numpy(obs[1:]), 
-            lane_lb, lane_ub
+            ego_state,  obs[1:], lane_lb, lane_ub
         )
         env.render()
         
