@@ -40,26 +40,30 @@ class EnvBarrierSim:
         self.lines = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * num)], lw=0.7)
         self.lanes = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * 5)], lw=0.7)
 
+        obstacles = np.zeros((10, 5))
+        obs_color="blue"
+        self.obstacles = [
+            plt.Rectangle(
+                [center[0] - self.WIDTH/2, center[1] - self.HEIGHT/2],
+                width=self.WIDTH, height=self.HEIGHT,
+                angle=np.rad2deg(center[2]), rotation_point="center", facecolor=obs_color
+            )
+            for center in obstacles
+        ]
+        for ob in self.obstacles:
+            self.ax.add_artist(ob)
+
         plt.axis([*vx, *vy])
         self.ax.set_ylim(self.ax.get_ylim()[::-1])
 
     def step(self, ego_state, obs_state, lane_lb, lane_ub):
         self.ego.set(angle=np.rad2deg(ego_state[4]))
 
-        obs_pos = obs_state[:, :2][:, None, None, :]
-        points = self.points[None, ...] - obs_pos
-
-        obs_ang = obs_state[:, 4]
-        obs_mat = rotation_matrix(obs_ang) @ self.A.mT
-        A_rot = th.func.vmap(lambda x, y: x@y)(points, obs_mat)
-        h, _ = (self.b - A_rot).min(dim=-1)
-        Z = - th.log(-h/(1-h))
-        Z = Z.sum(dim=0)
-
-        for coll in plt.gca().collections:
-            coll.remove()
-
-        self.ax.contour(self.X, self.Y, Z, 100, linewidths=1.0, cmap="Purples", zorder=-1)
+        for (rec, obs) in zip(self.obstacles, obs_state):
+            rec.set(
+                xy=[obs[0] - self.WIDTH/2, obs[1] - self.HEIGHT/2],
+                angle=np.rad2deg(obs[-1])
+            )
 
         x_lane = np.arange(-100, 100)
         for i in range(1+self.LANE_COUNT):
