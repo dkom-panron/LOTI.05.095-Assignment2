@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import highway_env
 import gymnasium as gym
 from env_config import env_config
 
