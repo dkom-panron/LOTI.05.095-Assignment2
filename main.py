@@ -1,3 +1,4 @@
+import highway_env
 import gymnasium as gym
 import time
 from env_config import env_config
