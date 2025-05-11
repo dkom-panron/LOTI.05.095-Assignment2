@@ -45,3 +45,12 @@ for _ in range(500):
     )
     env.render()
 ```
+
+# LOTI.05.095-Assignment 2
+
+Follow the setup instructions above.
+
+Run the planner:
+
+    python3 assignment.py --planner cem
+
