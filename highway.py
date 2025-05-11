@@ -32,7 +32,7 @@ class EnvBarrierSim:
         self.ax.add_artist(self.ego)
 
         self.lines = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * num)], lw=0.7)
-        self.lanes = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * 5)], lw=0.7)
+        self.lanes = self.ax.plot(*[np.empty((0, 1)) for _ in range(2 * (lane_count + 1))], lw=0.7)
 
         obstacles = np.zeros((obs_count, 5))
         obs_color="blue"
