@@ -30,6 +30,7 @@ class CEMPlanner:
         self.mean_prev = None
 
     def rollout(self, ego_state, actions, dt, l):
+        """
         x, y, vx, vy, theta = ego_state
         traj = np.zeros((self.n + 1, 3))
         traj[0, :] = [x, y, theta]
@@ -40,6 +41,30 @@ class CEMPlanner:
             y = y + v * np.sin(theta) * dt
             theta = theta + (v / l) * np.tan(delta) * dt
             traj[k + 1, :] = [x, y, theta]
+        return traj
+        """
+        x, y, vx, vy, theta = ego_state
+        # initialize trajectory array with (n+1) timesteps and 3 states (x, y, theta)
+        traj = np.zeros((self.n + 1, 3))
+        traj[0, :] = [x, y, theta]
+        
+        # velocity and steering angle from actions
+        v = actions[:, 0]
+        delta = actions[:, 1]
+        
+        theta_changes = (v / l) * np.tan(delta) * dt
+        theta_traj = theta + np.cumsum(theta_changes)
+        
+        dx = v * np.cos(theta_traj) * dt
+        dy = v * np.sin(theta_traj) * dt
+        
+        x_traj = x + np.cumsum(dx)
+        y_traj = y + np.cumsum(dy)
+        
+        traj[1:, 0] = x_traj
+        traj[1:, 1] = y_traj
+        traj[1:, 2] = theta_traj
+        
         return traj
 
     def compute_cost(self, traj, actions, yub, ylb):
