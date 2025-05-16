@@ -12,6 +12,7 @@ import argparse
 from highway import EnvBarrierSim, set_obs
 
 from planners.CEMPlanner import CEMPlanner
+from planners.JAXCEMPlanner import JAXCEMPlanner
 
 if __name__ == "__main__":
     env_config = env_config
@@ -42,16 +43,17 @@ if __name__ == "__main__":
 
     if args.planner == "cem":
         # TODO: commandline arguments
+        #planner = CEMPlanner(
         planner = CEMPlanner(
             n=num_controls,
-            num_samples=20,
-            percentage_elite=0.1,
-            num_iter=5,
+            num_samples=200,
+            percentage_elite=0.05,
+            num_iter=50,
             # calculate delta t based on env simulation step
             delta_t=delta_t,
             l=2.5,
             yd=8.0, # centerline y, each lane is 4 units wide
-            vd=15.0, # desired speed
+            vd=25.0, # desired speed
             min_v=env.unwrapped.config["action"]["speed_range"][0],
             max_v=env.unwrapped.config["action"]["speed_range"][1],
             min_steer=env.unwrapped.config["action"]["steering_range"][0],
@@ -59,8 +61,8 @@ if __name__ == "__main__":
             beta=5.0
         )
 
-        #mean_prev = np.zeros(2 * num_controls)
-        mean_prev = None
+        mean_prev = np.zeros(2 * num_controls)
+        mean_prev[:num_controls] = planner.vd
     else:
         print("Planner not implemented yet")
         sys.exit(1)
@@ -77,19 +79,27 @@ if __name__ == "__main__":
 
     ego_state, obs = set_obs(obs, lane_ub, lane_lb)
     done = False
+    delta0_prev = 0.0
     while not done:
+        #print(f"ego_state: {ego_state}")
+        #print(f"obs: {obs}")
         
         # Action to be computed using your Optimizer based on observation
-        controls, mean_prev, action = planner.plan(ego_state, obs, mean=mean_prev)
+        #controls, mean_prev, action = planner.plan(ego_state, obs, mean=mean_prev)
+        action, v, steering, x_traj, y_traj, theta_traj, mean = planner.plan(
+            ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
+        )
+
+        mean_prev = mean
+        delta0_prev = action[1]
 
         obs, reward, done, truncated, info = env.step(action)
         ego_state, obs = set_obs(obs, lane_ub, lane_lb)
 
         # Plot your generated trajectories here
-        # TODO: Trajectory does not appear curved, rather staright
-        x = np.cumsum(controls[:, 0] * np.cos(controls[:, 1]) * delta_t)
-        y = np.cumsum(controls[:, 0] * np.sin(controls[:, 1]) * delta_t)
-        env_barrier.lines[0].set_data(x, y)
+        x_traj -= x_traj[0]
+        y_traj -= y_traj[0]
+        env_barrier.lines[0].set_data(x_traj, y_traj)
         #print(f"{x=}")
         #print(f"{y=}")
 

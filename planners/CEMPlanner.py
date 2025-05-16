@@ -1,138 +1,127 @@
 import numpy as np
+import scipy
 
 class CEMPlanner:
-    def __init__(self, n=20, 
-                 num_samples=64, percentage_elite=0.1, num_iter=50, 
-                 delta_t=0.1, l=2.5,
-                 yd=0.0, vd=10.0, min_v=0.0, max_v=15.0, 
-                 min_steer=-0.5, max_steer=0.5, 
-                 beta=10.0):
-        self.n = n
-        self.num_samples = num_samples
-        self.percentage_elite = percentage_elite
-        self.num_iter = num_iter
-        self.delta_t = delta_t
-        self.yd = yd
-        self.vd = vd
-        self.min_v = min_v
-        self.max_v = max_v
-        self.min_steer = min_steer
-        self.max_steer = max_steer
-        self.beta = beta
-        self.l = l
-        
-        self.w_centerline = 1.0
-        self.w_smoothness = 1.0
-        self.w_speed = 1.0
-        self.w_lane = 0.1
+  def __init__(self, n=20, 
+         num_samples=200,
+         percentage_elite=0.05,
+         num_iter=50, 
+         delta_t=0.1,
+         l=2.5,
+         yd=0.0, vd=10.0,
+         min_v=0.0, max_v=15.0, 
+         min_steer=-0.5, max_steer=0.5, 
+         beta=5.0):
+    self.n = n
+    self.num_samples = num_samples
+    self.percentage_elite = percentage_elite
+    self.num_iter = num_iter
+    self.delta_t = delta_t
+    self.yd = yd
+    self.vd = vd
+    self.min_v = min_v
+    self.max_v = max_v
+    self.min_steer = min_steer
+    self.max_steer = max_steer
+    self.beta = beta
+    self.l = l
+    
+    self.w_centerline = 10.0
+    self.w_smoothness = 1.0
+    self.w_speed = 1.0
+    self.w_lane = 100.0
 
-        # for warmstarting
-        self.mean_prev = None
+    # for warmstarting
+    init_cov_v = 2*np.identity(self.n)
+    init_cov_steering = 0.1*np.identity(self.n)
+    self.init_cov = scipy.linalg.block_diag(init_cov_v, init_cov_steering)
 
-    def rollout(self, ego_state, actions, dt, l):
-        """
-        x, y, vx, vy, theta = ego_state
-        traj = np.zeros((self.n + 1, 3))
-        traj[0, :] = [x, y, theta]
-        for k in range(self.n):
-            v = actions[k, 0]
-            delta = actions[k, 1]
-            x = x + v * np.cos(theta) * dt
-            y = y + v * np.sin(theta) * dt
-            theta = theta + (v / l) * np.tan(delta) * dt
-            traj[k + 1, :] = [x, y, theta]
-        return traj
-        """
-        x, y, vx, vy, theta = ego_state
-        # initialize trajectory array with (n+1) timesteps and 3 states (x, y, theta)
-        traj = np.zeros((self.n + 1, 3))
-        traj[0, :] = [x, y, theta]
-        
-        # velocity and steering angle from actions
-        v = actions[:, 0]
-        delta = actions[:, 1]
-        
-        theta_changes = (v / l) * np.tan(delta) * dt
-        theta_traj = theta + np.cumsum(theta_changes)
-        
-        dx = v * np.cos(theta_traj) * dt
-        dy = v * np.sin(theta_traj) * dt
-        
-        x_traj = x + np.cumsum(dx)
-        y_traj = y + np.cumsum(dy)
-        
-        traj[1:, 0] = x_traj
-        traj[1:, 1] = y_traj
-        traj[1:, 2] = theta_traj
-        
-        return traj
+  def rollout(self, controls, ego_state, delta0):
+    x0, y0, vx0, vy0, theta0 = ego_state
 
-    def compute_cost(self, traj, actions, yub, ylb):
-        y = traj[:, 1]
-        v = actions[:, 0]
-        delta = actions[:, 1]
+    v = controls[0:self.n].copy()
+    steering = controls[self.n:2*self.n].copy()
 
-        c_centerline = np.sum((y - self.yd) ** 2)
-        c_smoothness = np.sum(np.diff(v) ** 2) + np.sum(np.diff(delta) ** 2)
-        c_speed = np.sum((v - self.vd) ** 2)
-        f_ub = y - yub
-        f_lb = -y + ylb
-        c_lane = np.sum(1.0 / self.beta * np.log(1 + np.exp(self.beta * f_ub))) + \
-                 np.sum(1.0 / self.beta * np.log(1 + np.exp(self.beta * f_lb)))
+    v0 = np.sqrt(vx0**2 + vy0**2)
+    v[0] = v0
+    steering[0] = delta0
 
-        #print(f"{c_centerline:.2f}, {c_smoothness:.2f}, {c_speed:.2f}, {c_lane:.2f}")
+    x_traj = np.zeros(self.n)
+    y_traj = np.zeros(self.n)
+    theta_traj = np.zeros(self.n)
 
-        return self.w_centerline * c_centerline + \
-               self.w_smoothness * c_smoothness + \
-               self.w_speed * c_speed + \
-               self.w_lane * c_lane
-        #return c_centerline
+    x_traj[0] = x0
+    y_traj[0] = y0
+    theta_traj[0] = theta0
 
-    def plan(self, ego_state, obs, mean=None):
-        ylb, yub = obs[0][1], obs[0][0]
-        # initial distribution (if no warmstart, center velocity on vd and steer at zero)
-        if mean is None:
-            mean = np.zeros((self.n, 2))
-            mean[:, 0] = self.vd # [v, steering]
+    # Calculate changes in theta
+    theta_changes = (v[:-1] / self.l) * np.tan(steering[:-1]) * self.delta_t
+    theta_traj[1:] = theta0 + np.cumsum(theta_changes)
 
-        cov = np.diag([
-            (self.max_v - self.min_v) * 0.2
-        ] * self.n + [
-            (self.max_steer - self.min_steer) * 0.2
-        ] * self.n).reshape((self.n * 2, self.n * 2))
+    # Calculate changes in x and y
+    dx = v[:-1] * np.cos(theta_traj[:-1]) * self.delta_t
+    dy = v[:-1] * np.sin(theta_traj[:-1]) * self.delta_t
 
-        mean = mean.reshape((-1,)) # flatten
-        
-        for _ in range(self.num_iter):
-            # (num_samples, plan_horizon*2)
-            samples = np.random.multivariate_normal(mean, cov, self.num_samples)
-            samples = samples.reshape((self.num_samples, self.n, 2))
+    x_traj[1:] = x0 + np.cumsum(dx)
+    y_traj[1:] = y0 + np.cumsum(dy)
 
-            # clip actions
-            samples[:, :, 0] = np.clip(samples[:, :, 0], self.min_v, self.max_v)
-            samples[:, :, 1] = np.clip(samples[:, :, 1], self.min_steer, self.max_steer)
+    return x_traj, y_traj, theta_traj, v, steering
 
-            costs = np.zeros(self.num_samples)
-            for i in range(self.num_samples):
-                traj = self.rollout(ego_state, samples[i], self.delta_t, self.l)
-                costs[i] = self.compute_cost(traj, samples[i], yub, ylb)
+  def compute_cost(self, controls, ego_state, delta0, obs):
+    x_traj, y_traj, theta_traj, v, steering = self.rollout(controls, ego_state, delta0)
 
-            num_elite = int(self.percentage_elite * self.num_samples)
-            elite_idx = np.argsort(costs)[:num_elite]
-            elite = samples[elite_idx].reshape(num_elite, -1)
-            mean = elite.mean(axis=0)
-            cov = np.cov(elite, rowvar=False) + 1e-4 * np.eye(self.n * 2)
+    cost_centerline = np.sum((y_traj - self.yd)**2)
+    cost_smoothness = np.sum(np.diff(v)**2 + np.diff(steering)**2)
+    cost_speed = np.sum(v - self.vd)**2
 
-        # best action sequence and new mean (reshaped to (n,2))
-        best_idx = np.argmin(costs)
-        best_controls = samples[best_idx]
+    y_ub, y_lb = obs[0][0], obs[0][1]
+    f_ub = y_traj - y_ub
+    f_lb = -y_traj + y_lb
+    cost_lane = np.sum(1/self.beta * np.log(1 + np.exp(self.beta * f_lb))) \
+              + np.sum(1/self.beta * np.log(1 + np.exp(self.beta * f_ub)))
 
-        # calculate action for HighwayEnv
-        # since it expects [throttle, steer]
-        # instead of [velocity, steer]
-        ego_speed = np.linalg.norm(ego_state[2:4])
-        v_desired = np.clip(best_controls[0, 0], self.min_v, self.max_v)
-        throttle_action = (v_desired - ego_speed)
-        action = np.array([throttle_action, best_controls[0, 1]])
+    return (self.w_centerline * cost_centerline +
+            self.w_smoothness * cost_smoothness +
+            self.w_speed * cost_speed +
+            self.w_lane * cost_lane)
 
-        return best_controls, mean.reshape((self.n, 2)), action
+  def plan(self, ego_state, obs, delta0, mean_init):
+    cov = self.init_cov.copy()
+    for i in range(self.num_iter):
+      # Sample controls
+      controls = np.random.multivariate_normal(mean_init, cov, self.num_samples)
+
+      controls[:, 0:self.n] = np.clip(controls[:, 0:self.n], self.min_v, self.max_v)
+      controls[:, self.n:2*self.n] = np.clip(controls[:, self.n:2*self.n], self.min_steer, self.max_steer)
+
+      # Evaluate cost
+      cost_samples = np.zeros(self.num_samples)
+      for j in range(self.num_samples):
+        cost_samples[j] = self.compute_cost(controls[j], ego_state, delta0, obs)
+
+      # Select elite samples
+      num_elite = int(self.percentage_elite * self.num_samples)
+      elite_indices = np.argsort(cost_samples)[:num_elite]
+      elite_controls = controls[elite_indices]
+
+      # Update mean and covariance
+      mean_init = np.mean(elite_controls, axis=0)
+      cov = np.cov(elite_controls.T) + 0.001 * np.identity(2*self.n)
+    
+    controls = np.random.multivariate_normal(mean_init, cov, self.num_samples)
+    cost_samples = np.zeros(self.num_samples)
+    for j in range(self.num_samples):
+      cost_samples[j] = self.compute_cost(controls[j], ego_state, delta0, obs)
+
+    controls_best = controls[np.argmin(cost_samples)]
+    x_traj, y_traj, theta_traj, v, steering = self.rollout(controls_best, ego_state, delta0)
+
+    # calculate action for HighwayEnv
+    # ego state is [x, y, vx, vy, theta]
+    ego_speed = np.linalg.norm(ego_state[2:4])
+    v_desired = np.clip(v[1], self.min_v, self.max_v)
+    throttle_action = (v_desired - ego_speed)/self.delta_t
+    action = np.array([throttle_action, steering[1]])
+
+    return action, v, steering, x_traj, y_traj, theta_traj, mean_init
+      

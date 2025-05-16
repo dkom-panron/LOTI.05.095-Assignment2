@@ -30,7 +30,7 @@ env_config = dict(
         lateral=True,                   # Enable steerig control
         dynamical=True,                 # Enable dynamics in simulation (friction/slip) rather than Kinematics
         acceleration_range=[-10, 10],   # Range of acceleration values [m/s2]
-        steering_range=[-0.5, 0.5],   # Range of steering values [rad]
+        steering_range=[-0.2, 0.2],   # Range of steering values [rad]
         speed_range=[-20, 50],          # Range of reachable speeds [m/s]
     ),
     right_lane_reward=0,
