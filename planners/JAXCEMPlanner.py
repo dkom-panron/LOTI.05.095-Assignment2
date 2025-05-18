@@ -10,7 +10,7 @@ class JAXCEMPlanner:
          delta_t=0.1, l=2.5,
          yd=0.0, vd=10.0, min_v=0.0, max_v=15.0, 
          min_steer=-0.5, max_steer=0.5, 
-         beta=10.0):
+         stomp_like=True):
     self.n = n
     self.num_samples = num_samples
     self.percentage_elite = percentage_elite
@@ -22,15 +22,18 @@ class JAXCEMPlanner:
     self.max_v = max_v
     self.min_steer = min_steer
     self.max_steer = max_steer
-    self.beta = beta
     self.l = l
 
+    # NB! Very important.
+    # When calculating lane cost using softplus, single precision
+    # can lead to numerical issues.
     jax.config.update("jax_enable_x64", True)
     
     self.w_centerline = 10.0
     self.w_smoothness = 50.0
     self.w_speed = 1.0
     self.w_lane = 1.0
+    self.beta = 5.0
 
     # for warmstarting
     #self.mean_prev = None
@@ -39,66 +42,37 @@ class JAXCEMPlanner:
     self.key, subkey = random.split(self.key)
 
     # "stomp-like" covariance initialization
-    """
-    A = np.diff(np.diff(np.identity(self.n), axis = 0), axis = 0)
+    if stomp_like:
+      A = np.diff(np.diff(np.identity(self.n), axis = 0), axis = 0)
 
-    temp_1 = np.zeros(self.n)
-    temp_2 = np.zeros(self.n)
-    temp_3 = np.zeros(self.n)
-    temp_4 = np.zeros(self.n)
+      temp_1 = np.zeros(self.n)
+      temp_2 = np.zeros(self.n)
+      temp_3 = np.zeros(self.n)
+      temp_4 = np.zeros(self.n)
 
-    temp_1[0] = 1.0
-    temp_2[0] = -2
-    temp_2[1] = 1
-    temp_3[-1] = -2
-    temp_3[-2] = 1
+      temp_1[0] = 1.0
+      temp_2[0] = -2
+      temp_2[1] = 1
+      temp_3[-1] = -2
+      temp_3[-2] = 1
 
-    temp_4[-1] = 1.0
+      temp_4[-1] = 1.0
 
-    A_mat = -np.vstack((temp_1, temp_2, A, temp_3, temp_4))
+      A_mat = -np.vstack((temp_1, temp_2, A, temp_3, temp_4))
 
-    R = np.dot(A_mat.T, A_mat)
-    mu = np.zeros(self.n) # not needed
-    cov = np.linalg.pinv(R)
-    self.init_cov = jax.scipy.linalg.block_diag(0.001*cov, 0.0003*cov)
-    """
-    init_cov_v = 2*jnp.identity(self.n)
-    init_cov_steering = 0.1*jnp.identity(self.n)
+      R = np.dot(A_mat.T, A_mat)
+      mu = np.zeros(self.n) # not needed
+      cov = np.linalg.pinv(R)
+      self.init_cov = jax.scipy.linalg.block_diag(0.001*cov, 0.0003*cov)
+    else:
+      init_cov_v = 2*jnp.identity(self.n)
+      init_cov_steering = 0.1*jnp.identity(self.n)
 
-    self.init_cov = jax.scipy.linalg.block_diag(init_cov_v, init_cov_steering)
+      self.init_cov = jax.scipy.linalg.block_diag(init_cov_v, init_cov_steering)
 
     self.compute_cost_batch = jit(vmap(self.compute_cost,
                                        in_axes=(0, None, None, None)))
 
-  """
-  @partial(jit, static_argnums=(0,))
-  def compute_rollout(self, controls, ego_state):
-    v_controls = controls[:self.n]
-    delta_controls = controls[self.n:2*self.n]
-
-    # Initialize state arrays
-    xs = jnp.zeros(self.n + 1)
-    ys = jnp.zeros(self.n + 1)
-    headings = jnp.zeros(self.n + 1)
-
-    #xs[0], ys[0], _, _, headings[0] = ego_state
-    #xs[0] = ego_state[0]
-    xs = xs.at[0].set(ego_state[0])
-    ys = ys.at[0].set(ego_state[1])
-    headings = headings.at[0].set(ego_state[4])
-    
-    for k in range(self.n):
-        #xs[k+1] = xs[k] + v_controls[k] * jnp.cos(headings[k]) * self.delta_t
-        xs = xs.at[k+1].set(xs[k] + v_controls[k] * jnp.cos(headings[k]) * self.delta_t)
-        #ys[k+1] = ys[k] + v_controls[k] * jnp.sin(headings[k]) * self.delta_t
-        ys = ys.at[k+1].set(ys[k] + v_controls[k] * jnp.sin(headings[k]) * self.delta_t)
-        #headings[k+1] = headings[k] + (v_controls[k] / self.l) * jnp.tan(delta_controls[k]) * self.delta_t
-        headings = headings.at[k+1].set(headings[k] + (v_controls[k] / self.l) * jnp.tan(delta_controls[k]) * self.delta_t)
-
-    # Optionally return as a stacked array of shape (n_steps+1, 3) for (x, y, heading)
-    #rollout = np.stack([xs, ys, headings], axis=-1)
-    return xs, ys, v_controls, delta_controls
-  """
   @partial(jit, static_argnums=(0,))
   def compute_rollout(self, controls, ego_state, delta0):
     x0, y0, vx0, vy0, theta0 = ego_state
@@ -157,14 +131,19 @@ class JAXCEMPlanner:
             self.w_lane * cost_lane)
 
   @partial(jit, static_argnums=(0,))
+  def clip_controls(self, controls):
+    controls = controls.at[..., :self.n].set(jnp.clip(controls[..., :self.n], self.min_v, self.max_v))
+    controls = controls.at[..., self.n:].set(jnp.clip(controls[..., self.n:], self.min_steer, self.max_steer))
+    return controls
+
+  @partial(jit, static_argnums=(0,))
   def plan(self, ego_state, obs, mean_init, delta0):
     def lax_cem(carry, _):
       mean, cov, key = carry
       key, subkey = random.split(key)
 
       controls = jax.random.multivariate_normal(subkey, mean, cov, (self.num_samples,))
-      controls = controls.at[..., :self.n].set(jnp.clip(controls[..., :self.n], self.min_v, self.max_v))
-      controls = controls.at[..., self.n:].set(jnp.clip(controls[..., self.n:], self.min_steer, self.max_steer))
+      controls = self.clip_controls(controls)
 
       cost_samples = self.compute_cost_batch(
         controls,
@@ -185,26 +164,27 @@ class JAXCEMPlanner:
     init_carry = (mean_init, self.init_cov, self.key)
     
     (final_mean, final_cov, final_key), _ = jax.lax.scan(
-        lax_cem, 
-        init_carry, 
-        jnp.arange(self.num_iter)
+      lax_cem, 
+      init_carry, 
+      jnp.arange(self.num_iter)
     )
     
     key, subkey = random.split(final_key)
     controls = jax.random.multivariate_normal(subkey, final_mean, final_cov, (self.num_samples,))
-    controls = controls.at[..., :self.n].set(jnp.clip(controls[..., :self.n], self.min_v, self.max_v))
-    controls = controls.at[..., self.n:].set(jnp.clip(controls[..., self.n:], self.min_steer, self.max_steer))
+    controls = self.clip_controls(controls)
 
     cost_samples = self.compute_cost_batch(
-        controls,
-        ego_state,
-        obs,
-        delta0
+      controls,
+      ego_state,
+      obs,
+      delta0
     )
     
     controls_best = controls[jnp.argmin(cost_samples)]
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_best, ego_state, delta0)
 
+    # Calculate action for HighwayEnv
+    # ego state is [x, y, vx, vy, theta]
     ego_speed = jnp.linalg.norm(ego_state[2:4])
     v_desired = jnp.clip(v[1], self.min_v, self.max_v)
     throttle_action = (v_desired - ego_speed)/self.delta_t

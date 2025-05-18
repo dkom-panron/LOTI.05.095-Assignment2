@@ -7,15 +7,21 @@ from env_config import env_config
 import time
 import matplotlib.pyplot as plt
 
-import argparse
+from assignment_args import parse_args
 
 from highway import EnvBarrierSim, set_obs
 
 from planners.CEMPlanner import CEMPlanner
 from planners.JAXCEMPlanner import JAXCEMPlanner
 
+
 if __name__ == "__main__":
+  args = parse_args()
+
   env_config = env_config
+  # Update env_config with command line arguments
+  env_config["initial_lane_id"] = args.env_initial_lane_id
+
   env = gym.make("highway-v0", config=env_config, render_mode="human")
   env.unwrapped.config["observation"]["absolute"] = True
   obs, info = env.reset(seed=121)
@@ -26,39 +32,25 @@ if __name__ == "__main__":
   lane_lb = lane_lower.start[1] - lane_lower.width/2
   lane_ub = lane_upper.start[1] + lane_upper.width/2
 
-  parser = argparse.ArgumentParser(description="A program with different planner options")
-  
-  parser.add_argument(
-    "--planner",
-    type=str,
-    choices=["cem", "nls", "ars"],
-    default="cem",
-    help="Planner type: 'cem', 'nls', or 'ars'"
-  )
-  
-  args = parser.parse_args()
 
-  num_controls = 20
   delta_t = 1/env.unwrapped.config["policy_frequency"]
 
   if args.planner == "cem":
-    # TODO: commandline arguments
-    #planner = CEMPlanner(
     kwargs = {
-      "n": num_controls,
-      "num_samples": 200,
-      "percentage_elite": 0.05,
-      "num_iter": 50,
+      "n": args.n,
+      "num_samples": args.cem_samples,
+      "percentage_elite": args.cem_elite,
+      "num_iter": args.cem_iter,
       # calculate delta t based on env simulation step
       "delta_t": delta_t,
       "l": 2.5,
-      "yd": 8.0, # centerline y, each lane is 4 units wide
-      "vd": 20.0, # desired speed
+      "yd": args.goal_yd,
+      "vd": args.goal_vd,
       "min_v": env.unwrapped.config["action"]["speed_range"][0],
       "max_v": env.unwrapped.config["action"]["speed_range"][1],
       "min_steer": env.unwrapped.config["action"]["steering_range"][0],
       "max_steer": env.unwrapped.config["action"]["steering_range"][1],
-      "beta": 5.0
+      "stomp_like": args.cem_stomp_like,
     }
     jax_cem_planner = JAXCEMPlanner(
       **kwargs,
@@ -68,20 +60,20 @@ if __name__ == "__main__":
     #  **kwargs,
     #)
 
-    mean_prev = np.zeros(2 * num_controls)
-    mean_prev[:num_controls] = jax_cem_planner.vd
+    mean_prev = np.zeros(2 * args.n)
+    # NB! Not initializing initial velocities to goal velocity
+    # led to the very first CEM samples being all over the place.
+    mean_prev[:args.n] = jax_cem_planner.vd
   else:
     print("Planner not implemented yet")
     sys.exit(1)
-
-  visualize_controls = True
 
   env_barrier = EnvBarrierSim(
     env.unwrapped.vehicle.WIDTH, 
     env.unwrapped.vehicle.LENGTH, 
     obs_count=env.unwrapped.config["observation"]["vehicles_count"] - 1,
     lane_count=env.unwrapped.config["lanes_count"],
-    n=num_controls
+    n=args.n,
   )
 
 
@@ -89,8 +81,7 @@ if __name__ == "__main__":
   done = False
   delta0_prev = 0.0
 
-  # Visualize controls
-  if visualize_controls:
+  if args.cem_visualize_controls:
     fig, ax_controls = plt.subplots()
     ax_controls.set_title("Control Inputs Over Time")
     ax_controls.set_xlabel("Control Index")
@@ -100,13 +91,11 @@ if __name__ == "__main__":
     #print(f"ego_state: {ego_state}")
     #print(f"obs: {obs}")
 
-    # Action to be computed using your Optimizer based on observation
-    #controls, mean_prev, action = planner.plan(ego_state, obs, mean=mean_prev)
     action, v, steering, x_traj, y_traj, theta_traj, mean, controls = jax_cem_planner.plan(
       ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
     )
 
-    if visualize_controls:
+    if args.cem_visualize_controls:
       # Update control plot
       plt.cla()
       ax_controls.invert_yaxis()
@@ -128,14 +117,10 @@ if __name__ == "__main__":
 
     # Plot your generated trajectories here
     env_barrier.lines[0].set_data(x_traj - x_traj[0], y_traj - y_traj[0])
-    #env_barrier.lines[0].set_data(_x_traj - _x_traj[0], _y_traj - _y_traj[0])
-    #print(f"{x=}")
-    #print(f"{y=}")
 
     env_barrier.step(
       ego_state,  obs[1:], lane_lb, lane_ub
     )
-
 
     env.render()
 

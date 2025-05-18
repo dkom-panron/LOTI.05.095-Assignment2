@@ -10,8 +10,7 @@ class CEMPlanner:
          l=2.5,
          yd=0.0, vd=10.0,
          min_v=0.0, max_v=15.0, 
-         min_steer=-0.5, max_steer=0.5, 
-         beta=5.0):
+         min_steer=-0.5, max_steer=0.5):
     self.n = n
     self.num_samples = num_samples
     self.percentage_elite = percentage_elite
@@ -23,13 +22,13 @@ class CEMPlanner:
     self.max_v = max_v
     self.min_steer = min_steer
     self.max_steer = max_steer
-    self.beta = beta
     self.l = l
     
     self.w_centerline = 1.0
     self.w_smoothness = 1.0
     self.w_speed = 1.0
     self.w_lane = 1.0
+    self.beta = 5.0
 
     # for warmstarting
     init_cov_v = 2*np.identity(self.n)
@@ -79,8 +78,6 @@ class CEMPlanner:
     y_ub, y_lb = obs[0][0], obs[0][1]
     f_ub = y_traj - y_ub
     f_lb = -y_traj + y_lb
-    #print(f"njx: y_ub: {y_ub}, y_lb: {y_lb}")
-    #print(f"{f_lb=}")
     cost_lane = np.sum(1.0/self.beta * np.log(1.0 + np.exp(self.beta * f_lb))) \
               + np.sum(1.0/self.beta * np.log(1.0 + np.exp(self.beta * f_ub)))
 
@@ -94,14 +91,17 @@ class CEMPlanner:
             self.w_speed * cost_speed +
             self.w_lane * cost_lane)
 
+  def clip_controls(self, controls):
+    controls[:, 0:self.n] = np.clip(controls[:, 0:self.n], self.min_v, self.max_v)
+    controls[:, self.n:2*self.n] = np.clip(controls[:, self.n:2*self.n], self.min_steer, self.max_steer)
+    return controls
+
   def plan(self, ego_state, obs, delta0, mean_init):
     cov = self.init_cov.copy()
     for i in range(self.num_iter):
       # Sample controls
       controls = np.random.multivariate_normal(mean_init, cov, self.num_samples)
-
-      controls[:, 0:self.n] = np.clip(controls[:, 0:self.n], self.min_v, self.max_v)
-      controls[:, self.n:2*self.n] = np.clip(controls[:, self.n:2*self.n], self.min_steer, self.max_steer)
+      controls = self.clip_controls(controls)
 
       # Evaluate cost
       cost_samples = np.zeros(self.num_samples)
@@ -118,6 +118,7 @@ class CEMPlanner:
       cov = np.cov(elite_controls.T) + 0.001 * np.identity(2*self.n)
     
     controls = np.random.multivariate_normal(mean_init, cov, self.num_samples)
+    controls = self.clip_controls(controls)
     cost_samples = np.zeros(self.num_samples)
     for j in range(self.num_samples):
       cost_samples[j] = self.compute_cost(controls[j], ego_state, obs, delta0)
@@ -125,7 +126,7 @@ class CEMPlanner:
     controls_best = controls[np.argmin(cost_samples)]
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_best, ego_state, delta0)
 
-    # calculate action for HighwayEnv
+    # Calculate action for HighwayEnv
     # ego state is [x, y, vx, vy, theta]
     ego_speed = np.linalg.norm(ego_state[2:4])
     v_desired = np.clip(v[1], self.min_v, self.max_v)
