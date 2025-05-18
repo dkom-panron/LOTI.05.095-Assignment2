@@ -61,7 +61,7 @@ class JAXCEMPlanner:
     self.init_cov = jax.scipy.linalg.block_diag(0.001*cov, 0.0003*cov)
     """
     init_cov_v = 2*jnp.identity(self.n)
-    init_cov_steering = 0.5*jnp.identity(self.n)
+    init_cov_steering = 0.1*jnp.identity(self.n)
 
     self.init_cov = jax.scipy.linalg.block_diag(init_cov_v, init_cov_steering)
 
@@ -145,8 +145,8 @@ class JAXCEMPlanner:
 
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
-            self.w_speed * cost_speed +
-            self.w_lane * cost_lane)
+            self.w_speed * cost_speed)
+            #self.w_lane * cost_lane)
 
   @partial(jit, static_argnums=(0,))
   def plan(self, ego_state, obs, mean_init, delta0):
@@ -184,6 +184,9 @@ class JAXCEMPlanner:
     
     key, subkey = random.split(final_key)
     controls = jax.random.multivariate_normal(subkey, final_mean, final_cov, (self.num_samples,))
+    controls = controls.at[..., :self.n].set(jnp.clip(controls[..., :self.n], self.min_v, self.max_v))
+    controls = controls.at[..., self.n:].set(jnp.clip(controls[..., self.n:], self.min_steer, self.max_steer))
+
     cost_samples = self.compute_cost_batch(
         controls,
         ego_state,
@@ -199,4 +202,4 @@ class JAXCEMPlanner:
     throttle_action = (v_desired - ego_speed)/self.delta_t
     action = jnp.array([throttle_action, steering[1]])
 
-    return action, v, steering, x_traj, y_traj, theta_traj, final_mean
+    return action, v, steering, x_traj, y_traj, theta_traj, final_mean, controls

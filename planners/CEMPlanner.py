@@ -26,17 +26,19 @@ class CEMPlanner:
     self.beta = beta
     self.l = l
     
-    self.w_centerline = 10.0
+    self.w_centerline = 1.0
     self.w_smoothness = 1.0
     self.w_speed = 1.0
-    self.w_lane = 100.0
+    self.w_lane = 1.0
 
     # for warmstarting
     init_cov_v = 2*np.identity(self.n)
     init_cov_steering = 0.1*np.identity(self.n)
     self.init_cov = scipy.linalg.block_diag(init_cov_v, init_cov_steering)
 
-  def rollout(self, controls, ego_state, delta0):
+    np.random.seed(0)
+
+  def compute_rollout(self, controls, ego_state, delta0):
     x0, y0, vx0, vy0, theta0 = ego_state
 
     v = controls[0:self.n].copy()
@@ -68,7 +70,7 @@ class CEMPlanner:
     return x_traj, y_traj, theta_traj, v, steering
 
   def compute_cost(self, controls, ego_state, delta0, obs):
-    x_traj, y_traj, theta_traj, v, steering = self.rollout(controls, ego_state, delta0)
+    x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls, ego_state, delta0)
 
     cost_centerline = np.sum((y_traj - self.yd)**2)
     cost_smoothness = np.sum(np.diff(v)**2 + np.diff(steering)**2)
@@ -114,7 +116,7 @@ class CEMPlanner:
       cost_samples[j] = self.compute_cost(controls[j], ego_state, delta0, obs)
 
     controls_best = controls[np.argmin(cost_samples)]
-    x_traj, y_traj, theta_traj, v, steering = self.rollout(controls_best, ego_state, delta0)
+    x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_best, ego_state, delta0)
 
     # calculate action for HighwayEnv
     # ego state is [x, y, vx, vy, theta]
@@ -123,5 +125,5 @@ class CEMPlanner:
     throttle_action = (v_desired - ego_speed)/self.delta_t
     action = np.array([throttle_action, steering[1]])
 
-    return action, v, steering, x_traj, y_traj, theta_traj, mean_init
+    return action, v, steering, x_traj, y_traj, theta_traj, mean_init, controls
       
