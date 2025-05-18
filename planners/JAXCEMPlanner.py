@@ -146,10 +146,10 @@ class JAXCEMPlanner:
     cost_lane = jnp.sum(1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_lb))) \
               + jnp.sum(1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_ub)))
     
-    jax.debug.print("cost_centerline={cost_centerline}", cost_centerline=cost_centerline)
-    jax.debug.print("cost_smoothness={cost_smoothness}", cost_smoothness=cost_smoothness)
-    jax.debug.print("cost_speed={cost_speed}", cost_speed=cost_speed)
-    jax.debug.print("cost_lane={cost_lane}", cost_lane=cost_lane)
+    #jax.debug.print("cost_centerline={cost_centerline}", cost_centerline=cost_centerline)
+    #jax.debug.print("cost_smoothness={cost_smoothness}", cost_smoothness=cost_smoothness)
+    #jax.debug.print("cost_speed={cost_speed}", cost_speed=cost_speed)
+    #jax.debug.print("cost_lane={cost_lane}", cost_lane=cost_lane)
 
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
@@ -210,4 +210,4 @@ class JAXCEMPlanner:
     throttle_action = (v_desired - ego_speed)/self.delta_t
     action = jnp.array([throttle_action, steering[1]])
 
-    return action, v, steering, x_traj, y_traj, theta_traj, final_mean, controls, controls_best
+    return action, v, steering, x_traj, y_traj, theta_traj, final_mean, controls

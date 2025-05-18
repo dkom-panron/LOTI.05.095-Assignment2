@@ -80,14 +80,14 @@ class CEMPlanner:
     f_ub = y_traj - y_ub
     f_lb = -y_traj + y_lb
     #print(f"njx: y_ub: {y_ub}, y_lb: {y_lb}")
-    print(f"{f_lb=}")
+    #print(f"{f_lb=}")
     cost_lane = np.sum(1.0/self.beta * np.log(1.0 + np.exp(self.beta * f_lb))) \
               + np.sum(1.0/self.beta * np.log(1.0 + np.exp(self.beta * f_ub)))
 
-    print(f"{cost_centerline=}")
-    print(f"{cost_smoothness=}")
-    print(f"{cost_speed=}")
-    print(f"{cost_lane=}")
+    #print(f"{cost_centerline=}")
+    #print(f"{cost_smoothness=}")
+    #print(f"{cost_speed=}")
+    #print(f"{cost_lane=}")
 
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
@@ -132,5 +132,5 @@ class CEMPlanner:
     throttle_action = (v_desired - ego_speed)/self.delta_t
     action = np.array([throttle_action, steering[1]])
 
-    return action, v, steering, x_traj, y_traj, theta_traj, mean_init, controls, controls_best
+    return action, v, steering, x_traj, y_traj, theta_traj, mean_init, controls
       

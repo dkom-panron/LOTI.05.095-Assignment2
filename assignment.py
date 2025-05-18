@@ -88,37 +88,25 @@ if __name__ == "__main__":
   done = False
   delta0_prev = 0.0
 
-  # visualize controls
+  # Visualize controls
+  """
   fig, ax_controls = plt.subplots()
   ax_controls.set_title("Control Inputs Over Time")
   ax_controls.set_xlabel("Control Index")
   ax_controls.set_ylabel("Control Value")
+  """
 
   while not done:
     #print(f"ego_state: {ego_state}")
-    print(f"obs: {obs}")
+    #print(f"obs: {obs}")
 
-    action, v, steering, x_traj, y_traj, theta_traj, mean, controls, controls_best = cem_planner.plan(
-      ego_state=ego_state, obs=obs, mean_init=mean_prev, delta0=delta0_prev
-    )
-    print("compute cost")
-    cem_cost = cem_planner.compute_cost(
-      controls_best, ego_state, obs, delta0_prev
-    )
-    jax_cem_cost = jax_cem_planner.compute_cost(
-      controls_best, ego_state, obs, delta0_prev
-    )
-    print(f"cem_cost: {cem_cost}")
-    print(f"jax_cem_cost: {jax_cem_cost}")
-    break
-    
-    """
     # Action to be computed using your Optimizer based on observation
     #controls, mean_prev, action = planner.plan(ego_state, obs, mean=mean_prev)
     action, v, steering, x_traj, y_traj, theta_traj, mean, controls = jax_cem_planner.plan(
       ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
     )
 
+    """
     # Update control plot
     plt.cla()
     # Plot controls from JAXCEMPlanner
@@ -143,7 +131,6 @@ if __name__ == "__main__":
     plt.pause(0.01)
     """
 
-
     mean_prev = mean
     delta0_prev = action[1]
 
@@ -163,4 +150,4 @@ if __name__ == "__main__":
 
     env.render()
 
-    input()
+    #input()
