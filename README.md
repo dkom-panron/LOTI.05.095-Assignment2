@@ -52,5 +52,9 @@ Follow the setup instructions above.
 
 Run the planner:
 
-    python3 assignment.py --planner cem
+    python3 assignment.py
+
+The planner defaults to CEM. To see available planners and their parameters, run:
+
+    python3 assignment.py --help
 
