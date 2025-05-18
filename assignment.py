@@ -106,30 +106,19 @@ if __name__ == "__main__":
       ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
     )
 
-    """
-    # Update control plot
-    plt.cla()
-    # Plot controls from JAXCEMPlanner
-    for c in controls:
-      _x_traj, _y_traj, _, _, _ = jax_cem_planner.compute_rollout(c, ego_state, delta0_prev)
-      ax_controls.plot(_x_traj - _x_traj[0], _y_traj - _y_traj[0], "b-", alpha=0.1)
-    ax_controls.plot(x_traj - x_traj[0], y_traj - y_traj[0], "r-", label="JAX Best")
+    if visualize_controls:
+      # Update control plot
+      plt.cla()
+      ax_controls.invert_yaxis()
+      # Plot controls from JAXCEMPlanner
+      for c in controls:
+        _x_traj, _y_traj, _, _, _ = jax_cem_planner.compute_rollout(c, ego_state, delta0_prev)
+        ax_controls.plot(_x_traj - _x_traj[0], _y_traj - _y_traj[0], "b-", alpha=0.1)
+      ax_controls.plot(x_traj - x_traj[0], y_traj - y_traj[0], "r-", label="Best")
 
-    # Plot controls from CEMPlanner
-    _action, _v, _steering, _x_traj, _y_traj, _theta_traj, _mean, _controls = cem_planner.plan(
-      ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
-    )
-    for c in _controls:
-      __x_traj, __y_traj, _, _, _ = cem_planner.compute_rollout(c, ego_state, delta0_prev)
-      ax_controls.plot(__x_traj - __x_traj[0], __y_traj - __y_traj[0], "g-", alpha=0.1)
-    ax_controls.plot(_x_traj - _x_traj[0], _y_traj - _y_traj[0], "y-", label="CEM Best")
-
-    ax_controls.invert_yaxis()
-
-    ax_controls.grid(True)
-    ax_controls.legend()
-    plt.pause(0.01)
-    """
+      ax_controls.grid(True)
+      ax_controls.legend()
+      plt.pause(0.001)
 
     mean_prev = mean
     delta0_prev = action[1]
