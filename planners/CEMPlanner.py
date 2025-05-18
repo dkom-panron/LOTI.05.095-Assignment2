@@ -69,18 +69,25 @@ class CEMPlanner:
 
     return x_traj, y_traj, theta_traj, v, steering
 
-  def compute_cost(self, controls, ego_state, delta0, obs):
+  def compute_cost(self, controls, ego_state, obs, delta0):
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls, ego_state, delta0)
 
     cost_centerline = np.sum((y_traj - self.yd)**2)
     cost_smoothness = np.sum(np.diff(v)**2 + np.diff(steering)**2)
-    cost_speed = np.sum(v - self.vd)**2
+    cost_speed = np.sum((v - self.vd)**2)
 
     y_ub, y_lb = obs[0][0], obs[0][1]
     f_ub = y_traj - y_ub
     f_lb = -y_traj + y_lb
-    cost_lane = np.sum(1/self.beta * np.log(1 + np.exp(self.beta * f_lb))) \
-              + np.sum(1/self.beta * np.log(1 + np.exp(self.beta * f_ub)))
+    #print(f"njx: y_ub: {y_ub}, y_lb: {y_lb}")
+    print(f"{f_lb=}")
+    cost_lane = np.sum(1.0/self.beta * np.log(1.0 + np.exp(self.beta * f_lb))) \
+              + np.sum(1.0/self.beta * np.log(1.0 + np.exp(self.beta * f_ub)))
+
+    print(f"{cost_centerline=}")
+    print(f"{cost_smoothness=}")
+    print(f"{cost_speed=}")
+    print(f"{cost_lane=}")
 
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
@@ -99,7 +106,7 @@ class CEMPlanner:
       # Evaluate cost
       cost_samples = np.zeros(self.num_samples)
       for j in range(self.num_samples):
-        cost_samples[j] = self.compute_cost(controls[j], ego_state, delta0, obs)
+        cost_samples[j] = self.compute_cost(controls[j], ego_state, obs, delta0)
 
       # Select elite samples
       num_elite = int(self.percentage_elite * self.num_samples)
@@ -113,7 +120,7 @@ class CEMPlanner:
     controls = np.random.multivariate_normal(mean_init, cov, self.num_samples)
     cost_samples = np.zeros(self.num_samples)
     for j in range(self.num_samples):
-      cost_samples[j] = self.compute_cost(controls[j], ego_state, delta0, obs)
+      cost_samples[j] = self.compute_cost(controls[j], ego_state, obs, delta0)
 
     controls_best = controls[np.argmin(cost_samples)]
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_best, ego_state, delta0)
@@ -125,5 +132,5 @@ class CEMPlanner:
     throttle_action = (v_desired - ego_speed)/self.delta_t
     action = np.array([throttle_action, steering[1]])
 
-    return action, v, steering, x_traj, y_traj, theta_traj, mean_init, controls
+    return action, v, steering, x_traj, y_traj, theta_traj, mean_init, controls, controls_best
       

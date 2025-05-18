@@ -24,6 +24,8 @@ class JAXCEMPlanner:
     self.max_steer = max_steer
     self.beta = beta
     self.l = l
+
+    jax.config.update("jax_enable_x64", True)
     
     self.w_centerline = 1.0
     self.w_smoothness = 1.0
@@ -133,20 +135,26 @@ class JAXCEMPlanner:
   def compute_cost(self, controls, ego_state, obs, delta0):
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls, ego_state, delta0)
 
-    cost_centerline = jnp.sum((y_traj - self.yd) ** 2)
-    cost_smoothness = jnp.sum(jnp.diff(v) ** 2) + jnp.sum(jnp.diff(steering) ** 2)
-    cost_speed = jnp.sum((v - self.vd) ** 2)
+    cost_centerline = jnp.sum((y_traj - self.yd)**2)
+    cost_smoothness = jnp.sum(jnp.diff(v)**2 + jnp.diff(steering)**2)
+    cost_speed = jnp.sum((v - self.vd)**2)
 
-    ylb, yub = obs[0][1], obs[0][0]
-    f_ub = y_traj - yub
-    f_lb = -y_traj + ylb
-    cost_lane = jnp.sum(1.0 / self.beta * jnp.log(1 + jnp.exp(self.beta * f_ub))) + \
-             jnp.sum(1.0 / self.beta * jnp.log(1 + jnp.exp(self.beta * f_lb)))
+    y_ub, y_lb = obs[0][0], obs[0][1]
+    f_ub = y_traj - y_ub
+    f_lb = -y_traj + y_lb
+
+    cost_lane = jnp.sum(1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_lb))) \
+              + jnp.sum(1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_ub)))
+    
+    jax.debug.print("cost_centerline={cost_centerline}", cost_centerline=cost_centerline)
+    jax.debug.print("cost_smoothness={cost_smoothness}", cost_smoothness=cost_smoothness)
+    jax.debug.print("cost_speed={cost_speed}", cost_speed=cost_speed)
+    jax.debug.print("cost_lane={cost_lane}", cost_lane=cost_lane)
 
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
-            self.w_speed * cost_speed)
-            #self.w_lane * cost_lane)
+            self.w_speed * cost_speed +
+            self.w_lane * cost_lane)
 
   @partial(jit, static_argnums=(0,))
   def plan(self, ego_state, obs, mean_init, delta0):
@@ -202,4 +210,4 @@ class JAXCEMPlanner:
     throttle_action = (v_desired - ego_speed)/self.delta_t
     action = jnp.array([throttle_action, steering[1]])
 
-    return action, v, steering, x_traj, y_traj, theta_traj, final_mean, controls
+    return action, v, steering, x_traj, y_traj, theta_traj, final_mean, controls, controls_best
