@@ -24,19 +24,11 @@ class JAXCEMPlanner:
     self.max_steer = max_steer
     self.l = l
 
-    # NB! Very important.
-    # When calculating lane cost using softplus, single precision
-    # can lead to numerical issues.
-    jax.config.update("jax_enable_x64", True)
-    
     self.w_centerline = 10.0
     self.w_smoothness = 50.0
     self.w_speed = 1.0
     self.w_lane = 1.0
     self.beta = 5.0
-
-    # for warmstarting
-    #self.mean_prev = None
 
     self.key = random.PRNGKey(0)
     self.key, subkey = random.split(self.key)
@@ -128,7 +120,7 @@ class JAXCEMPlanner:
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
             self.w_speed * cost_speed +
-            self.w_lane * cost_lane)
+            self.w_lane * cost_lane), x_traj, y_traj
 
   @partial(jit, static_argnums=(0,))
   def clip_controls(self, controls):
@@ -145,7 +137,7 @@ class JAXCEMPlanner:
       controls = jax.random.multivariate_normal(subkey, mean, cov, (self.num_samples,))
       controls = self.clip_controls(controls)
 
-      cost_samples = self.compute_cost_batch(
+      cost_samples, _, _ = self.compute_cost_batch(
         controls,
         ego_state,
         obs,
@@ -173,7 +165,7 @@ class JAXCEMPlanner:
     controls = jax.random.multivariate_normal(subkey, final_mean, final_cov, (self.num_samples,))
     controls = self.clip_controls(controls)
 
-    cost_samples = self.compute_cost_batch(
+    cost_samples, x_traj_all, y_traj_all = self.compute_cost_batch(
       controls,
       ego_state,
       obs,
@@ -183,11 +175,5 @@ class JAXCEMPlanner:
     controls_best = controls[jnp.argmin(cost_samples)]
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_best, ego_state, delta0)
 
-    # Calculate action for HighwayEnv
-    # ego state is [x, y, vx, vy, theta]
-    ego_speed = jnp.linalg.norm(ego_state[2:4])
-    v_desired = jnp.clip(v[1], self.min_v, self.max_v)
-    throttle_action = (v_desired - ego_speed)/self.delta_t
-    action = jnp.array([throttle_action, steering[1]])
-
-    return action, v, steering, x_traj, y_traj, theta_traj, final_mean, controls
+    #return v, steering, x_traj, y_traj, theta_traj, final_mean, controls
+    return v, steering, x_traj, y_traj, theta_traj, final_mean, x_traj_all, y_traj_all

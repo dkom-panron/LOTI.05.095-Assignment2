@@ -89,7 +89,7 @@ class CEMPlanner:
     return (self.w_centerline * cost_centerline +
             self.w_smoothness * cost_smoothness +
             self.w_speed * cost_speed +
-            self.w_lane * cost_lane)
+            self.w_lane * cost_lane), x_traj, y_traj
 
   def clip_controls(self, controls):
     controls[:, 0:self.n] = np.clip(controls[:, 0:self.n], self.min_v, self.max_v)
@@ -106,7 +106,8 @@ class CEMPlanner:
       # Evaluate cost
       cost_samples = np.zeros(self.num_samples)
       for j in range(self.num_samples):
-        cost_samples[j] = self.compute_cost(controls[j], ego_state, obs, delta0)
+        cost, _, _ = self.compute_cost(controls[j], ego_state, obs, delta0)
+        cost_samples[j] = cost
 
       # Select elite samples
       num_elite = int(self.percentage_elite * self.num_samples)
@@ -120,18 +121,17 @@ class CEMPlanner:
     controls = np.random.multivariate_normal(mean_init, cov, self.num_samples)
     controls = self.clip_controls(controls)
     cost_samples = np.zeros(self.num_samples)
+    x_traj_all = np.zeros((self.num_samples, self.n))
+    y_traj_all = np.zeros((self.num_samples, self.n))
     for j in range(self.num_samples):
-      cost_samples[j] = self.compute_cost(controls[j], ego_state, obs, delta0)
+      cost, x_traj, y_traj = self.compute_cost(controls[j], ego_state, obs, delta0)
+      cost_samples[j] = cost
+      x_traj_all[j] = x_traj
+      y_traj_all[j] = y_traj
 
     controls_best = controls[np.argmin(cost_samples)]
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_best, ego_state, delta0)
 
-    # Calculate action for HighwayEnv
-    # ego state is [x, y, vx, vy, theta]
-    ego_speed = np.linalg.norm(ego_state[2:4])
-    v_desired = np.clip(v[1], self.min_v, self.max_v)
-    throttle_action = (v_desired - ego_speed)/self.delta_t
-    action = np.array([throttle_action, steering[1]])
-
-    return action, v, steering, x_traj, y_traj, theta_traj, mean_init, controls
+    #return v, steering, x_traj, y_traj, theta_traj, mean_init, controls
+    return v, steering, x_traj, y_traj, theta_traj, mean_init, x_traj_all, y_traj_all
       

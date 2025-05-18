@@ -3,6 +3,8 @@ import numpy as np
 import highway_env
 import gymnasium as gym
 from env_config import env_config
+import jax
+import jax.numpy as jnp
 
 import time
 import matplotlib.pyplot as plt
@@ -14,8 +16,12 @@ from highway import EnvBarrierSim, set_obs
 from planners.CEMPlanner import CEMPlanner
 from planners.JAXCEMPlanner import JAXCEMPlanner
 
-
 if __name__ == "__main__":
+  # NB! Very important.
+  # When calculating lane cost using softplus, single precision
+  # can lead to numerical issues.
+  jax.config.update("jax_enable_x64", True)
+    
   args = parse_args()
 
   env_config = env_config
@@ -52,7 +58,7 @@ if __name__ == "__main__":
       "max_steer": env.unwrapped.config["action"]["steering_range"][1],
       "stomp_like": args.cem_stomp_like,
     }
-    jax_cem_planner = JAXCEMPlanner(
+    planner = JAXCEMPlanner(
       **kwargs,
     )
 
@@ -63,7 +69,7 @@ if __name__ == "__main__":
     mean_prev = np.zeros(2 * args.n)
     # NB! Not initializing initial velocities to goal velocity
     # led to the very first CEM samples being all over the place.
-    mean_prev[:args.n] = jax_cem_planner.vd
+    mean_prev[:args.n] = planner.vd
   else:
     print("Planner not implemented yet")
     sys.exit(1)
@@ -73,41 +79,31 @@ if __name__ == "__main__":
     env.unwrapped.vehicle.LENGTH, 
     obs_count=env.unwrapped.config["observation"]["vehicles_count"] - 1,
     lane_count=env.unwrapped.config["lanes_count"],
+    num=(args.cem_samples if args.planner == "cem" else 1),
     n=args.n,
   )
+
+  def controls_to_action(v, steering, ego_state):
+    ego_speed = np.linalg.norm(ego_state[2:4])
+    v_desired = np.clip(v[1], planner.min_v, planner.max_v)
+    throttle_action = (v_desired - ego_speed)/delta_t
+    steering_action = steering[1]
+    return np.array([throttle_action, steering_action])
 
 
   ego_state, obs = set_obs(obs, lane_ub, lane_lb)
   done = False
   delta0_prev = 0.0
 
-  if args.cem_visualize_controls:
-    fig, ax_controls = plt.subplots()
-    ax_controls.set_title("Control Inputs Over Time")
-    ax_controls.set_xlabel("Control Index")
-    ax_controls.set_ylabel("Control Value")
-
   while not done:
     #print(f"ego_state: {ego_state}")
     #print(f"obs: {obs}")
 
-    action, v, steering, x_traj, y_traj, theta_traj, mean, controls = jax_cem_planner.plan(
+    v, steering, x_traj, y_traj, theta_traj, mean, x_traj_all, y_traj_all = planner.plan(
       ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
     )
 
-    if args.cem_visualize_controls:
-      # Update control plot
-      plt.cla()
-      ax_controls.invert_yaxis()
-      # Plot controls from JAXCEMPlanner
-      for c in controls:
-        _x_traj, _y_traj, _, _, _ = jax_cem_planner.compute_rollout(c, ego_state, delta0_prev)
-        ax_controls.plot(_x_traj - _x_traj[0], _y_traj - _y_traj[0], "b-", alpha=0.1)
-      ax_controls.plot(x_traj - x_traj[0], y_traj - y_traj[0], "r-", label="Best")
-
-      ax_controls.grid(True)
-      ax_controls.legend()
-      plt.pause(0.001)
+    action = controls_to_action(v, steering, ego_state)
 
     mean_prev = mean
     delta0_prev = action[1]
@@ -115,8 +111,11 @@ if __name__ == "__main__":
     obs, reward, done, truncated, info = env.step(action)
     ego_state, obs = set_obs(obs, lane_ub, lane_lb)
 
-    # Plot your generated trajectories here
-    env_barrier.lines[0].set_data(x_traj - x_traj[0], y_traj - y_traj[0])
+    # Plot generated trajectories
+    if args.cem_visualize_controls:
+      for i in range(0, args.cem_samples, 1):
+        env_barrier.lines[i].set_data(x_traj_all[i] - x_traj_all[i][0], y_traj_all[i] - y_traj_all[i][0])
+    env_barrier.best_line[0].set_data(x_traj - x_traj[0], y_traj - y_traj[0])
 
     env_barrier.step(
       ego_state,  obs[1:], lane_lb, lane_ub
