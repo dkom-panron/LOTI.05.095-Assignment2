@@ -79,5 +79,13 @@ def parse_args():
     default=False,
     help="Visualize CEM controls."
   )
+
+  # NLS specific arguments
+  parser.add_argument(
+    "--nls-iter",
+    type=int,
+    default=100,
+    help="Number of iterations for NLS."
+  )
   
   return parser.parse_args()
