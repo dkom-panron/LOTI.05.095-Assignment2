@@ -53,7 +53,7 @@ if __name__ == "__main__":
       "delta_t": delta_t,
       "l": 2.5,
       "yd": 8.0, # centerline y, each lane is 4 units wide
-      "vd": 25.0, # desired speed
+      "vd": 20.0, # desired speed
       "min_v": env.unwrapped.config["action"]["speed_range"][0],
       "max_v": env.unwrapped.config["action"]["speed_range"][1],
       "min_steer": env.unwrapped.config["action"]["steering_range"][0],
@@ -64,9 +64,9 @@ if __name__ == "__main__":
       **kwargs,
     )
 
-    cem_planner = CEMPlanner(
-      **kwargs,
-    )
+    #cem_planner = CEMPlanner(
+    #  **kwargs,
+    #)
 
     mean_prev = np.zeros(2 * num_controls)
     mean_prev[:num_controls] = jax_cem_planner.vd
@@ -74,6 +74,7 @@ if __name__ == "__main__":
     print("Planner not implemented yet")
     sys.exit(1)
 
+  visualize_controls = True
 
   env_barrier = EnvBarrierSim(
     env.unwrapped.vehicle.WIDTH, 
@@ -89,12 +90,11 @@ if __name__ == "__main__":
   delta0_prev = 0.0
 
   # Visualize controls
-  """
-  fig, ax_controls = plt.subplots()
-  ax_controls.set_title("Control Inputs Over Time")
-  ax_controls.set_xlabel("Control Index")
-  ax_controls.set_ylabel("Control Value")
-  """
+  if visualize_controls:
+    fig, ax_controls = plt.subplots()
+    ax_controls.set_title("Control Inputs Over Time")
+    ax_controls.set_xlabel("Control Index")
+    ax_controls.set_ylabel("Control Value")
 
   while not done:
     #print(f"ego_state: {ego_state}")

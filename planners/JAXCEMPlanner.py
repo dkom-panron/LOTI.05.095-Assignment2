@@ -27,8 +27,8 @@ class JAXCEMPlanner:
 
     jax.config.update("jax_enable_x64", True)
     
-    self.w_centerline = 1.0
-    self.w_smoothness = 1.0
+    self.w_centerline = 10.0
+    self.w_smoothness = 50.0
     self.w_speed = 1.0
     self.w_lane = 1.0
 
