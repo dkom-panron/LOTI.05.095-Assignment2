@@ -22,8 +22,8 @@ class NLSPlanner:
     self.max_steer = max_steer
     self.l = l
 
-    self.w_centerline = 10.0
-    self.w_smoothness = 50.0
+    self.w_centerline = 1.0
+    self.w_smoothness = 1.0
     self.w_speed = 1.0
     self.w_lane = 1.0
     self.beta = 5.0
@@ -94,20 +94,20 @@ class NLSPlanner:
     error_lane_ub = 1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_lb))
     error_lane_lb = 1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_ub))
     
-    jax.debug.print("error_centerline={x}", x=error_centerline)
-    jax.debug.print("error_smoothness_v={x}", x=error_smoothness_v)
-    jax.debug.print("error_smoothness_steering={x}", x=error_smoothness_steering)
-    jax.debug.print("error_speed={x}", x=error_speed)
-    jax.debug.print("error_lane_ub={x}", x=error_lane_ub)
-    jax.debug.print("error_lane_lb={x}", x=error_lane_lb)
+    #jax.debug.print("error_centerline={x}", x=error_centerline)
+    #jax.debug.print("error_smoothness_v={x}", x=error_smoothness_v)
+    #jax.debug.print("error_smoothness_steering={x}", x=error_smoothness_steering)
+    #jax.debug.print("error_speed={x}", x=error_speed)
+    #jax.debug.print("error_lane_ub={x}", x=error_lane_ub)
+    #jax.debug.print("error_lane_lb={x}", x=error_lane_lb)
 
     return jnp.hstack((
       self.w_centerline * error_centerline,
       self.w_smoothness * error_smoothness_v,
       self.w_smoothness * error_smoothness_steering,
       self.w_speed * error_speed,
-      self.w_lane * error_lane_ub,
-      self.w_lane * error_lane_lb
+      #self.w_lane * error_lane_ub,
+      #self.w_lane * error_lane_lb
     ))
 
   @partial(jit, static_argnums=(0,))

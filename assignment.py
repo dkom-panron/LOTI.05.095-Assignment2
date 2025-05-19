@@ -71,7 +71,7 @@ if __name__ == "__main__":
     # NB! Not initializing initial velocities to goal velocity
     # led to the very first CEM samples being all over the place.
     mean_prev[:args.n] = planner.vd
-
+  elif args.planner == "nls":
     kwargs = {
       "n": args.n,
       "num_iter": args.nls_iter,
@@ -84,14 +84,12 @@ if __name__ == "__main__":
       "min_steer": env.unwrapped.config["action"]["steering_range"][0],
       "max_steer": env.unwrapped.config["action"]["steering_range"][1],
     }
-    nls_planner = NLSPlanner(
+    planner = NLSPlanner(
       **kwargs,
     )
 
     controls_prev = 0.01 * jnp.ones(2 * args.n)
-  elif args.planner == "nls":
-    #controls_prev[:args.n] = planner.vd
-    pass
+    controls_prev = controls_prev.at[:args.n].set(planner.vd)
   else:
     print("Planner not implemented yet")
     sys.exit(1)
@@ -125,11 +123,6 @@ if __name__ == "__main__":
       v, steering, x_traj, y_traj, theta_traj, mean_prev, x_traj_all, y_traj_all = planner.plan(
         ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
       )
-
-      # testing nls error
-      controls = jnp.concatenate((v, steering))
-      nls_error = nls_planner.compute_error(controls, ego_state, obs, delta0_prev)
-      input()
     elif args.planner == "nls":
       v, steering, x_traj, y_traj, theta_traj, controls_prev = planner.plan(
         ego_state, obs, controls_init=controls_prev, delta0=delta0_prev
