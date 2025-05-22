@@ -34,8 +34,8 @@ class NLSPlanner:
 
   @partial(jit, static_argnums=(0,))
   def clip_controls(self, controls):
-    controls = controls.at[..., :self.n].set(jnp.clip(controls[..., :self.n], self.min_v, self.max_v))
-    controls = controls.at[..., self.n:].set(jnp.clip(controls[..., self.n:], self.min_steer, self.max_steer))
+    controls = controls.at[:self.n].set(jnp.clip(controls[:self.n], self.min_v, self.max_v))
+    controls = controls.at[self.n:].set(jnp.clip(controls[self.n:], self.min_steer, self.max_steer))
     return controls
 
   @partial(jit, static_argnums=(0,))
@@ -48,8 +48,8 @@ class NLSPlanner:
 
     # v0 and initial steering at 0
     v0 = jnp.sqrt(vx0**2 + vy0**2)
-    v = v.at[0].set(v0)
-    steering = steering.at[0].set(delta0)
+    #v = v.at[0].set(v0)
+    #steering = steering.at[0].set(delta0)
 
     x_traj = jnp.zeros(self.n)
     y_traj = jnp.zeros(self.n)
@@ -57,7 +57,7 @@ class NLSPlanner:
 
     x_traj = x_traj.at[0].set(x0)
     y_traj = y_traj.at[0].set(y0)
-    theta_traj = theta_traj.at[0].set(theta0)
+    #theta_traj = theta_traj.at[0].set(theta0)
 
     # Changes in theta, x, y
     theta_changes = (v[:-1] / self.l) * jnp.tan(steering[:-1]) * self.delta_t
@@ -134,10 +134,10 @@ class NLSPlanner:
     state = (ego_state, obs, delta0)
     
     carry_init = (X_init, state)
-    carry_final, _ = jax.lax.scan(lax_gauss_newton, carry_init, jnp.arange(self.num_iter))
+    carry_final, costs = jax.lax.scan(lax_gauss_newton, carry_init, jnp.arange(self.num_iter))
     
     controls_optimal = carry_final[0]
 
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls_optimal, ego_state, delta0)
     
-    return v, steering, x_traj, y_traj, theta_traj, controls_optimal
+    return v, steering, x_traj, y_traj, theta_traj, controls_optimal, costs
