@@ -89,6 +89,7 @@ if __name__ == "__main__":
     )
 
     controls_prev = 0.01 * jnp.ones(2 * args.n)
+    #controls_prev = jnp.zeros(2 * args.n)
     controls_prev = controls_prev.at[:args.n].set(planner.vd)
   else:
     print("Planner not implemented yet")

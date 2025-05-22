@@ -38,6 +38,7 @@ class NLSPlanner:
     controls = controls.at[self.n:].set(jnp.clip(controls[self.n:], self.min_steer, self.max_steer))
     return controls
 
+  """
   @partial(jit, static_argnums=(0,))
   def compute_rollout(self, controls, ego_state, delta0):
     x0, y0, vx0, vy0, theta0 = ego_state
@@ -68,6 +69,43 @@ class NLSPlanner:
 
     x_traj = x_traj.at[1:].set(x0 + jnp.cumsum(dx))
     y_traj = y_traj.at[1:].set(y0 + jnp.cumsum(dy))
+
+    return x_traj, y_traj, theta_traj, v, steering
+  """
+  @partial(jit, static_argnums=(0,))
+  def compute_rollout(self, controls, ego_state, delta0):
+    x0, y0, vx0, vy0, theta0 = ego_state
+
+    controls = self.clip_controls(controls)
+    v = controls[0:self.n]
+    steering = controls[self.n:2*self.n]
+
+    # Combine vx0 and vy0 into a single velocity.
+    # We can calculate v0 based on what `KinematicObservation` provides us,
+    # but we have to store the previous step's steering input (delta0).
+    v0 = jnp.sqrt(vx0**2 + vy0**2)
+    #v[0] = v0
+    #steering[0] = delta0
+    v = v.at[0].set(v0)
+    steering = steering.at[0].set(delta0)
+
+    x_traj = jnp.zeros(self.n)
+    y_traj = jnp.zeros(self.n)
+    theta_traj = jnp.zeros(self.n)
+
+    #x_traj[0] = x0
+    x_traj = x_traj.at[0].set(x0)
+    #y_traj[0] = y0
+    y_traj = y_traj.at[0].set(y0)
+    #theta_traj[0] = theta0
+    theta_traj = theta_traj.at[0].set(theta0)
+    for k in range(self.n-1):
+      #x_traj[k+1] = x_traj[k] + v[k] * jnp.cos(theta_traj[k]) * self.delta_t
+      x_traj = x_traj.at[k+1].set(x_traj[k] + v[k] * jnp.cos(theta_traj[k]) * self.delta_t)
+      #y_traj[k+1] = y_traj[k] + v[k] * jnp.sin(theta_traj[k]) * self.delta_t
+      y_traj = y_traj.at[k+1].set(y_traj[k] + v[k] * jnp.sin(theta_traj[k]) * self.delta_t)
+      #theta_traj[k+1] = theta_traj[k] + v[k] / self.l * jnp.tan(steering[k]) * self.delta_t
+      theta_traj = theta_traj.at[k+1].set(theta_traj[k] + v[k] / self.l * jnp.tan(steering[k]) * self.delta_t)
 
     return x_traj, y_traj, theta_traj, v, steering
 
@@ -103,8 +141,8 @@ class NLSPlanner:
 
     return jnp.hstack((
       self.w_centerline * error_centerline,
-      self.w_smoothness * error_smoothness_v,
-      self.w_smoothness * error_smoothness_steering,
+      #self.w_smoothness * error_smoothness_v,
+      #self.w_smoothness * error_smoothness_steering,
       self.w_speed * error_speed,
       #self.w_lane * error_lane_ub,
       #self.w_lane * error_lane_lb
