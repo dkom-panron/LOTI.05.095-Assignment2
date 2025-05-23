@@ -116,9 +116,6 @@ if __name__ == "__main__":
     # NB! Not initializing initial velocities to goal velocity
     # led to the very first CEM samples being all over the place.
     mean_prev[:args.n] = planner.vd
-  else:
-    print("Planner not implemented yet")
-    sys.exit(1)
 
   env_barrier = EnvBarrierSim(
     env.unwrapped.vehicle.WIDTH, 
@@ -154,11 +151,9 @@ if __name__ == "__main__":
         ego_state, obs, controls_init=controls_prev, delta0=delta0_prev
       )
     elif args.planner == "ars":
-      print("running ars")
       v, steering, x_traj, y_traj, theta_traj, mean_prev = planner.plan(
         ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
       )
-      print("returned from ars")
 
     action = controls_to_action(v, steering, ego_state)
     print(f"action: {[f'{a:.2f}' for a in action]}")

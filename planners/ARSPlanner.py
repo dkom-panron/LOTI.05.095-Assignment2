@@ -101,39 +101,32 @@ class ARSPlanner:
 
   @partial(jit, static_argnums=(0,))
   def plan(self, ego_state, obs, mean_init, delta0):
-    def ars_step(mean, key):
-      # Generate perturbations
+    def ars_step(carry, _):
+      mean, key = carry
+
       key, subkey = random.split(key)
       deltas = random.normal(subkey, (self.num_samples, *mean.shape))
 
       deltas_positive = mean[None] + self.nu * deltas
       deltas_negative = mean[None] - self.nu * deltas
 
-      # Compute costs for positive and negative perturbations
       cost_positive, _, _ = self.compute_cost_batch(deltas_positive, ego_state, obs, delta0)
       cost_negative, _, _ = self.compute_cost_batch(deltas_negative, ego_state, obs, delta0)
 
-      # Select top b elite samples
       max_cost = jnp.maximum(cost_positive, cost_negative)
       idx = jnp.argsort(max_cost)[:int(self.percentage_elite * self.num_samples)]
       deltas_elite = deltas[idx]
       cost_diff = cost_positive[idx] - cost_negative[idx]
 
-      # Compute gradient
       weighted_deltas = deltas_elite * cost_diff[..., None]
       grad = jnp.sum(weighted_deltas, axis=0)
 
-      # Update mean
       std_cost = jnp.std(jnp.hstack([cost_positive[idx], cost_negative[idx]])).clip(1e-6)
       mean = mean + (self.alpha / (std_cost * self.percentage_elite * self.num_samples)) * grad
 
-      return mean, key
+      return (mean, key), None
 
-    mean = mean_init
-    key = self.key
-
-    for _ in range(self.num_iter):
-      mean, key = ars_step(mean, key)
+    (mean, _), _ = jax.lax.scan(ars_step, (mean_init, self.key), None, length=self.num_iter)
 
     controls = mean
     x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls, ego_state, delta0)

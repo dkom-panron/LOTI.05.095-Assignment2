@@ -29,7 +29,7 @@ def parse_args():
   parser.add_argument(
     "--goal-vd",
     type=float,
-    default=20.0,
+    default=25.0,
     help="Desired speed for the goal."
   )
 
