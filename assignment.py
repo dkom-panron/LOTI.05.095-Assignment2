@@ -16,6 +16,7 @@ from highway import EnvBarrierSim, set_obs
 from planners.CEMPlanner import CEMPlanner
 from planners.JAXCEMPlanner import JAXCEMPlanner
 from planners.NLSPlanner import NLSPlanner
+from planners.ARSPlanner import ARSPlanner
 
 if __name__ == "__main__":
   # NB! Very important.
@@ -91,6 +92,30 @@ if __name__ == "__main__":
     controls_prev = 0.01 * jnp.ones(2 * args.n)
     #controls_prev = jnp.zeros(2 * args.n)
     controls_prev = controls_prev.at[:args.n].set(planner.vd)
+  elif args.planner == "ars":
+    kwargs = {
+      "n": args.n,
+      "num_samples": args.ars_samples,
+      "percentage_elite": args.ars_elite,
+      "num_iter": args.ars_iter,
+      # calculate delta t based on env simulation step
+      "delta_t": delta_t,
+      "l": 2.5,
+      "yd": args.goal_yd,
+      "vd": args.goal_vd,
+      "min_v": env.unwrapped.config["action"]["speed_range"][0],
+      "max_v": env.unwrapped.config["action"]["speed_range"][1],
+      "min_steer": env.unwrapped.config["action"]["steering_range"][0],
+      "max_steer": env.unwrapped.config["action"]["steering_range"][1],
+    }
+    planner = ARSPlanner(
+      **kwargs,
+    )
+
+    mean_prev = np.zeros(2 * args.n)
+    # NB! Not initializing initial velocities to goal velocity
+    # led to the very first CEM samples being all over the place.
+    mean_prev[:args.n] = planner.vd
   else:
     print("Planner not implemented yet")
     sys.exit(1)
@@ -128,6 +153,12 @@ if __name__ == "__main__":
       v, steering, x_traj, y_traj, theta_traj, controls_prev, costs = planner.plan(
         ego_state, obs, controls_init=controls_prev, delta0=delta0_prev
       )
+    elif args.planner == "ars":
+      print("running ars")
+      v, steering, x_traj, y_traj, theta_traj, mean_prev = planner.plan(
+        ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
+      )
+      print("returned from ars")
 
     action = controls_to_action(v, steering, ego_state)
     print(f"action: {[f'{a:.2f}' for a in action]}")

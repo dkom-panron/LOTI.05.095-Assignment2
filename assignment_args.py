@@ -87,5 +87,25 @@ def parse_args():
     default=100,
     help="Number of iterations for NLS."
   )
+
+  # ARS specific arguments
+  parser.add_argument(
+    "--ars-samples",
+    type=int,
+    default=200,
+    help="Number of samples for ARS."
+  )
+  parser.add_argument(
+    "--ars-elite",
+    type=float,
+    default=0.05,
+    help="Percentage of elite samples for ARS."
+  )
+  parser.add_argument(
+    "--ars-iter",
+    type=int,
+    default=50,
+    help="Number of iterations for ARS."
+  )
   
   return parser.parse_args()

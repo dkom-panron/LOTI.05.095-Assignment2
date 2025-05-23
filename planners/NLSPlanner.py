@@ -27,7 +27,7 @@ class NLSPlanner:
     self.w_speed = 1.0
     self.w_lane = 1.0
     self.beta = 5.0
-    self.eta = 0.1
+    self.eta = 0.001
 
     self.jac_func = jit(jacfwd(self.compute_error, argnums=(0)))
     #self.compute_error_func = jit(self.compute_error, static_argnums=(0,))
@@ -141,11 +141,11 @@ class NLSPlanner:
 
     return jnp.hstack((
       self.w_centerline * error_centerline,
-      #self.w_smoothness * error_smoothness_v,
-      #self.w_smoothness * error_smoothness_steering,
+      self.w_smoothness * error_smoothness_v,
+      self.w_smoothness * error_smoothness_steering,
       self.w_speed * error_speed,
-      #self.w_lane * error_lane_ub,
-      #self.w_lane * error_lane_lb
+      self.w_lane * error_lane_ub,
+      self.w_lane * error_lane_lb
     ))
 
   @partial(jit, static_argnums=(0,))
