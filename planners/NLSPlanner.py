@@ -22,12 +22,12 @@ class NLSPlanner:
     self.max_steer = max_steer
     self.l = l
 
-    self.w_centerline = 1.0
-    self.w_smoothness = 1.0
+    self.w_centerline = 0.2
+    self.w_smoothness = 20.0
     self.w_speed = 1.0
     self.w_lane = 1.0
     self.beta = 5.0
-    self.eta = 0.001
+    self.eta = 0.01
 
     self.jac_func = jit(jacfwd(self.compute_error, argnums=(0)))
     #self.compute_error_func = jit(self.compute_error, static_argnums=(0,))
@@ -76,7 +76,7 @@ class NLSPlanner:
   def compute_rollout(self, controls, ego_state, delta0):
     x0, y0, vx0, vy0, theta0 = ego_state
 
-    controls = self.clip_controls(controls)
+    #controls = self.clip_controls(controls)
     v = controls[0:self.n]
     steering = controls[self.n:2*self.n]
 

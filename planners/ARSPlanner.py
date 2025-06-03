@@ -33,7 +33,7 @@ class ARSPlanner:
     self.beta = 5.0
 
     self.alpha = 0.01
-    self.nu = 0.1
+    self.nu = 0.01
 
     self.key = random.PRNGKey(0)
     self.key, subkey = random.split(self.key)

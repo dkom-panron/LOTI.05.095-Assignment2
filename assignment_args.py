@@ -44,7 +44,7 @@ def parse_args():
   parser.add_argument(
     "--n",
     type=int,
-    default=20,
+    default=40,
     help="Number of control inputs (n * linear velocities + n * steering commands)."
   )
 
