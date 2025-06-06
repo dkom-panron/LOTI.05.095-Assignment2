@@ -6,12 +6,15 @@ import jax
 
 class ARSPlanner:
   def __init__(self,
-               n=20, 
+               n=20,
          num_samples=64, # N
-         percentage_elite=0.1, # b 
+         percentage_elite=0.1, # b
          num_iter=50, # num_step
+         alpha=0.01,
+         nu=0.1,
+         beta=10.0,
          delta_t=0.1, l=2.5,
-         yd=0.0, vd=10.0, min_v=0.0, max_v=15.0, 
+         yd=8.0, vd=25.0, min_v=0.0, max_v=30.0,
          min_steer=-0.5, max_steer=0.5):
     self.n = n
     self.num_samples = num_samples
@@ -26,14 +29,18 @@ class ARSPlanner:
     self.max_steer = max_steer
     self.l = l
 
-    self.w_centerline = 10.0
-    self.w_smoothness = 50.0
+    # `b` from ARS notebook
+    self.b = int(self.percentage_elite * self.num_samples)
+
+    self.w_centerline = 0.1
+    self.w_last_centerline = 3.0
+    self.w_smoothness = 100.0
     self.w_speed = 1.0
     self.w_lane = 1.0
-    self.beta = 5.0
+    self.beta = beta
 
-    self.alpha = 0.01
-    self.nu = 0.01
+    self.alpha = alpha
+    self.nu = nu
 
     self.key = random.PRNGKey(0)
     self.key, subkey = random.split(self.key)
@@ -81,17 +88,23 @@ class ARSPlanner:
     cost_smoothness = jnp.sum(jnp.diff(v)**2 + jnp.diff(steering)**2)
     cost_speed = jnp.sum((v - self.vd)**2)
 
+    cost_last_centerline = (y_traj[-1] - self.yd)**2
+
     y_ub, y_lb = obs[0][0], obs[0][1]
     f_ub = y_traj - y_ub
     f_lb = -y_traj + y_lb
 
     cost_lane = jnp.sum(1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_lb))) \
               + jnp.sum(1.0/self.beta * jnp.log(1.0 + jnp.exp(self.beta * f_ub)))
-    
-    return (self.w_centerline * cost_centerline +
-            self.w_smoothness * cost_smoothness +
-            self.w_speed * cost_speed +
-            self.w_lane * cost_lane), x_traj, y_traj
+
+    #jax.debug.print("yd {x}", x=self.yd)
+    #jax.debug.print("min y_traj {x}", x=jnp.min(y_traj))
+    #jax.debug.print("max y_traj {x}", x=jnp.max(y_traj))
+    return -(self.w_centerline * cost_centerline
+            + self.w_smoothness * cost_smoothness
+            + self.w_speed * cost_speed
+            + self.w_last_centerline * cost_last_centerline
+            ), (v, steering, x_traj, y_traj, theta_traj)
 
   @partial(jit, static_argnums=(0,))
   def clip_controls(self, controls):
@@ -110,30 +123,39 @@ class ARSPlanner:
       deltas_positive = mean[None] + self.nu * deltas
       deltas_negative = mean[None] - self.nu * deltas
 
-      cost_positive, _, _ = self.compute_cost_batch(deltas_positive, ego_state, obs, delta0)
-      cost_negative, _, _ = self.compute_cost_batch(deltas_negative, ego_state, obs, delta0)
+      cost_positive, _ = self.compute_cost_batch(deltas_positive, ego_state, obs, delta0)
+      cost_negative, _ = self.compute_cost_batch(deltas_negative, ego_state, obs, delta0)
+      #jax.debug.print("deltas.shape = {x}", x=deltas.shape)
+      #jax.debug.print("cost_positive.shape = {x}", x=cost_positive.shape)
+      #jax.debug.print("cost_negative.shape = {x}", x=cost_negative.shape)
+      #jax.debug.print("mean.shape = {x}", x=mean.shape)
 
-      max_cost = jnp.maximum(cost_positive, cost_negative)
-      idx = jnp.argsort(max_cost)[:int(self.percentage_elite * self.num_samples)]
-      deltas_elite = deltas[idx]
-      cost_diff = cost_positive[idx] - cost_negative[idx]
+      max_cost = jnp.fmax(cost_positive, cost_negative)
+      arg_cost = jnp.argsort(max_cost)
+      #tops = arg_cost[:self.b]
+      tops = arg_cost[-self.b:]
 
-      weighted_deltas = deltas_elite * cost_diff[..., None]
+      costs_diff = cost_positive[tops] - cost_negative[tops]
+      weighted_deltas = deltas[tops] * costs_diff[..., None]
       grad = jnp.sum(weighted_deltas, axis=0)
 
-      std_cost = jnp.std(jnp.hstack([cost_positive[idx], cost_negative[idx]])).clip(1e-6)
-      mean = mean + (self.alpha / (std_cost * self.percentage_elite * self.num_samples)) * grad
+      stack_rwds = jnp.hstack([cost_positive[tops], cost_negative[tops]])
+      sdv = jnp.std(stack_rwds).clip(1e-6) # std cost
 
-      return (mean, key), None
+      mean = mean + (self.alpha / (sdv * self.b)) * grad
 
-    (mean, _), _ = jax.lax.scan(ars_step, (mean_init, self.key), None, length=self.num_iter)
+      mean_cost, (v, steering, x_traj, y_traj, theta_traj) = self.compute_cost(mean, ego_state, obs, delta0)
+      #jax.debug.print("min y_traj {x}", x=(jnp.min(y_traj)-self.yd)**2)
+      #jax.debug.print("max y_traj {x}", x=(jnp.max(y_traj)-self.yd)**2)
+      #jax.debug.print("sum y_traj {x}", x=jnp.sum((y_traj-self.yd)**2))
 
-    controls = mean
-    x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls, ego_state, delta0)
+      return (mean, key), mean_cost
 
-    #jax.debug.print("x_traj={x}", x=x_traj)
-    #jax.debug.print("y_traj={y}", y=y_traj)
-    #jax.debug.print("theta_traj={theta}", theta=theta_traj)
-    #jax.debug.print("v={v}", v=v)
-    #jax.debug.print("steering={s}", s=steering)
-    return v, steering, x_traj, y_traj, theta_traj, mean
+    carry_init = (mean_init, self.key)
+    (final_mean, final_key), costs = jax.lax.scan(ars_step, carry_init, jnp.arange(self.num_iter))
+
+    controls = final_mean
+    #x_traj, y_traj, theta_traj, v, steering = self.compute_rollout(controls, ego_state, delta0)
+    cost, (v, steering, x_traj, y_traj, theta_traj) = self.compute_cost(final_mean, ego_state, obs, delta0)
+
+    return v, steering, x_traj, y_traj, theta_traj, final_mean, costs

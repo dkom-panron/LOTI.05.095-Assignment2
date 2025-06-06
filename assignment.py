@@ -151,7 +151,7 @@ if __name__ == "__main__":
         ego_state, obs, controls_init=controls_prev, delta0=delta0_prev
       )
     elif args.planner == "ars":
-      v, steering, x_traj, y_traj, theta_traj, mean_prev = planner.plan(
+      v, steering, x_traj, y_traj, theta_traj, mean_prev, costs = planner.plan(
         ego_state, obs, mean_init=mean_prev, delta0=delta0_prev
       )
 
