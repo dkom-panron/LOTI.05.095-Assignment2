@@ -23,11 +23,12 @@ class NLSPlanner:
     self.l = l
 
     self.w_centerline = 0.2
-    self.w_smoothness = 20.0
+    self.w_centerline_last = 100.0
+    self.w_smoothness = 10.0
     self.w_speed = 1.0
-    self.w_lane = 1.0
-    self.beta = 5.0
-    self.eta = 0.01
+    self.w_lane = 0.01
+    self.beta = 2.0
+    self.eta = 0.1
 
     self.jac_func = jit(jacfwd(self.compute_error, argnums=(0)))
     #self.compute_error_func = jit(self.compute_error, static_argnums=(0,))
@@ -115,6 +116,7 @@ class NLSPlanner:
 
     #cost_centerline = jnp.sum((y_traj - self.yd)**2)
     error_centerline = y_traj - self.yd
+    error_centerline_last = y_traj[-1] - self.yd
 
     #cost_smoothness = jnp.sum(jnp.diff(v)**2 + jnp.diff(steering)**2)
     error_smoothness_v = jnp.diff(v)
@@ -141,6 +143,7 @@ class NLSPlanner:
 
     return jnp.hstack((
       self.w_centerline * error_centerline,
+      self.w_centerline_last * error_centerline_last,
       self.w_smoothness * error_smoothness_v,
       self.w_smoothness * error_smoothness_steering,
       self.w_speed * error_speed,

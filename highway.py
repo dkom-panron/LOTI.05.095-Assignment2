@@ -51,7 +51,7 @@ class EnvBarrierSim:
         plt.axis([*vx, *vy])
         self.ax.set_ylim(self.ax.get_ylim()[::-1])
 
-    def step(self, ego_state, obs_state, lane_lb, lane_ub):
+    def step(self, ego_state, obs_state, lane_lb, lane_ub, title):
         self.ego.set(angle=np.rad2deg(ego_state[4]))
 
         for (rec, obs) in zip(self.obstacles, obs_state):
@@ -65,6 +65,8 @@ class EnvBarrierSim:
             y_lane = (lane_lb + 4*i - ego_state[1]) * np.ones_like(x_lane)
             self.lanes[i].set_data(x_lane, y_lane)
             self.lanes[i].set(zorder=0)
+
+        self.ax.set_title(title)
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()

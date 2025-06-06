@@ -43,23 +43,23 @@ if __name__ == "__main__":
 
   delta_t = 1/env.unwrapped.config["policy_frequency"]
 
+  kwargs = {
+    "n": args.n,
+    "delta_t": delta_t,
+    "l": 2.5,
+    "yd": args.goal_yd,
+    "vd": args.goal_vd,
+    "min_v": env.unwrapped.config["action"]["speed_range"][0],
+    "max_v": env.unwrapped.config["action"]["speed_range"][1],
+    "min_steer": env.unwrapped.config["action"]["steering_range"][0],
+    "max_steer": env.unwrapped.config["action"]["steering_range"][1],
+  }
+
   if args.planner == "cem":
-    kwargs = {
-      "n": args.n,
-      "num_samples": args.cem_samples,
-      "percentage_elite": args.cem_elite,
-      "num_iter": args.cem_iter,
-      # calculate delta t based on env simulation step
-      "delta_t": delta_t,
-      "l": 2.5,
-      "yd": args.goal_yd,
-      "vd": args.goal_vd,
-      "min_v": env.unwrapped.config["action"]["speed_range"][0],
-      "max_v": env.unwrapped.config["action"]["speed_range"][1],
-      "min_steer": env.unwrapped.config["action"]["steering_range"][0],
-      "max_steer": env.unwrapped.config["action"]["steering_range"][1],
-      "stomp_like": args.cem_stomp_like,
-    }
+    kwargs["num_samples"] = args.cem_samples
+    kwargs["percentage_elite"] = args.cem_elite
+    kwargs["num_iter"] = args.cem_iter
+    kwargs["stomp_like"] = args.cem_stomp_like
     planner = JAXCEMPlanner(
       **kwargs,
     )
@@ -73,18 +73,7 @@ if __name__ == "__main__":
     # led to the very first CEM samples being all over the place.
     mean_prev[:args.n] = planner.vd
   elif args.planner == "nls":
-    kwargs = {
-      "n": args.n,
-      "num_iter": args.nls_iter,
-      "delta_t": delta_t,
-      "l": 2.5,
-      "yd": args.goal_yd,
-      "vd": args.goal_vd,
-      "min_v": env.unwrapped.config["action"]["speed_range"][0],
-      "max_v": env.unwrapped.config["action"]["speed_range"][1],
-      "min_steer": env.unwrapped.config["action"]["steering_range"][0],
-      "max_steer": env.unwrapped.config["action"]["steering_range"][1],
-    }
+    kwargs["num_iter"] = args.nls_iter
     planner = NLSPlanner(
       **kwargs,
     )
@@ -93,21 +82,9 @@ if __name__ == "__main__":
     #controls_prev = jnp.zeros(2 * args.n)
     controls_prev = controls_prev.at[:args.n].set(planner.vd)
   elif args.planner == "ars":
-    kwargs = {
-      "n": args.n,
-      "num_samples": args.ars_samples,
-      "percentage_elite": args.ars_elite,
-      "num_iter": args.ars_iter,
-      # calculate delta t based on env simulation step
-      "delta_t": delta_t,
-      "l": 2.5,
-      "yd": args.goal_yd,
-      "vd": args.goal_vd,
-      "min_v": env.unwrapped.config["action"]["speed_range"][0],
-      "max_v": env.unwrapped.config["action"]["speed_range"][1],
-      "min_steer": env.unwrapped.config["action"]["steering_range"][0],
-      "max_steer": env.unwrapped.config["action"]["steering_range"][1],
-    }
+    kwargs["num_samples"] = args.ars_samples
+    kwargs["percentage_elite"] = args.ars_elite
+    kwargs["num_iter"] = args.ars_iter
     planner = ARSPlanner(
       **kwargs,
     )
@@ -139,7 +116,7 @@ if __name__ == "__main__":
   delta0_prev = 0.0
 
   while not done:
-    #print(f"ego_state: {ego_state}")
+    #print(f"vx: {ego_state[2]:.2f}, vy: {ego_state[3]:.2f}, theta: {ego_state[4]:.2f}")
     #print(f"obs: {obs}")
 
     if args.planner == "cem":
@@ -156,7 +133,9 @@ if __name__ == "__main__":
       )
 
     action = controls_to_action(v, steering, ego_state)
-    print(f"action: {[f'{a:.2f}' for a in action]}")
+    #action = np.array([v[1], steering[1]])
+    title = f"throttle: {action[0]:05.2f}, steering: {action[1]:05.2f} | vx: {ego_state[2]:05.2f}, vy: {ego_state[3]:05.2f}, theta: {ego_state[4]:05.2f}"
+    print(title)
     delta0_prev = action[1]
 
     obs, reward, done, truncated, info = env.step(action)
@@ -169,7 +148,7 @@ if __name__ == "__main__":
     env_barrier.best_line[0].set_data(x_traj - x_traj[0], y_traj - y_traj[0])
 
     env_barrier.step(
-      ego_state,  obs[1:], lane_lb, lane_ub
+      ego_state,  obs[1:], lane_lb, lane_ub, title
     )
 
     env.render()

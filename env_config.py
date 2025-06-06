@@ -31,7 +31,7 @@ env_config = dict(
         dynamical=True,                 # Enable dynamics in simulation (friction/slip) rather than Kinematics
         acceleration_range=[-10, 10],   # Range of acceleration values [m/s2]
         steering_range=[-0.5, 0.5],   # Range of steering values [rad]
-        speed_range=[0, 30],          # Range of reachable speeds [m/s]
+        speed_range=[0, 40],          # Range of reachable speeds [m/s]
     ),
     right_lane_reward=0,
     high_speed_reward=10.0,

@@ -32,7 +32,7 @@ class ARSPlanner:
     # `b` from ARS notebook
     self.b = int(self.percentage_elite * self.num_samples)
 
-    self.w_centerline = 0.1
+    self.w_centerline = 0.6
     self.w_last_centerline = 3.0
     self.w_smoothness = 100.0
     self.w_speed = 1.0

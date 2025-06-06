@@ -24,8 +24,8 @@ class JAXCEMPlanner:
     self.max_steer = max_steer
     self.l = l
 
-    self.w_centerline = 10.0
-    self.w_smoothness = 50.0
+    self.w_centerline = 1.0
+    self.w_smoothness = 200.0
     self.w_speed = 1.0
     self.w_lane = 1.0
     self.beta = 5.0
